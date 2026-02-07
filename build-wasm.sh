@@ -1,12 +1,10 @@
 #!/usr/bin/env bash
 
-set -eu
-
 cd "$(dirname "$0")"
 BASE_DIR=$(pwd)
 
 # Emscripten version
-EMSDK_VERSION=3.1.51
+EMSDK_VERSION=5.0.0
 EMSDK_DIR="$BASE_DIR/emsdk"
 
 # FFmpeg version
@@ -30,8 +28,9 @@ echo "Installing Emscripten $EMSDK_VERSION..."
 echo "Activating Emscripten $EMSDK_VERSION..."
 ./emsdk activate $EMSDK_VERSION
 
-echo "Loading Emscripten environment..."
-source ./emsdk_env.sh
+# # echo "Loading Emscripten environment..."
+source "$EMSDK_DIR/emsdk_env.sh"
+
 
 cd "$BASE_DIR"
 
@@ -109,7 +108,7 @@ WASM_CONFIGURE_FLAGS=(
 )
 
 echo "Configuring FFmpeg for WASM..."
-./configure "${WASM_CONFIGURE_FLAGS[@]}" "${FFMPEG_CONFIGURE_FLAGS[@]}" || (cat ffbuild/config.log && exit 1)
+./configure "${WASM_CONFIGURE_FLAGS[@]}" "${FFMPEG_CONFIGURE_FLAGS[@]}" || exit 1
 
 echo "Building WASM..."
 make -j$(nproc)

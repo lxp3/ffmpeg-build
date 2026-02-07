@@ -3,7 +3,7 @@ outputs/
 *.tar.gz
 
 # Build directories
-build.*/
+build*/
 
 # Emscripten SDK
 emsdk/
