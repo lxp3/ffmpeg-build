@@ -99,10 +99,15 @@ jobs:
 
       - name: Setup Emscripten
         if: matrix.build_kind == 'wasm'
-        uses: mymindstorm/setup-emsdk@v14
-        with:
-          version: 3.1.51
-          actions-cache-folder: 'emsdk-cache'
+        run: |
+          git clone https://github.com/emscripten-core/emsdk.git
+          cd emsdk
+          ./emsdk install 3.1.51
+          ./emsdk activate 3.1.51
+          source ./emsdk_env.sh
+          echo "EMSDK=$PWD" >> $GITHUB_ENV
+          echo "$PWD" >> $GITHUB_PATH
+          echo "$PWD/upstream/emscripten" >> $GITHUB_PATH
 
       - name: Build Windows (Static)
         if: matrix.build_kind == 'static'
