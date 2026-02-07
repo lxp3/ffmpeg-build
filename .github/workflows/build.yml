@@ -37,6 +37,9 @@ jobs:
     needs: parse-tag
     if: needs.parse-tag.outputs.build_linux == 'true'
     runs-on: ubuntu-latest
+    concurrency:
+      group: build-${{ github.ref }}
+      cancel-in-progress: true
     steps:
       - uses: actions/checkout@v4
 
@@ -86,8 +89,8 @@ jobs:
           path: outputs/*.tar.gz
 
   build-windows:
-    needs: parse-tag
-    if: needs.parse-tag.outputs.build_windows == 'true'
+    needs: [parse-tag, build-linux-wasm]
+    if: always() && needs.parse-tag.outputs.build_windows == 'true' && needs.build-linux-wasm.result != 'failure'
     runs-on: windows-latest
     defaults:
       run:

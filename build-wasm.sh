@@ -23,17 +23,14 @@ while IFS= read -r line || [[ -n "$line" ]]; do
     [[ -n "$line" ]] && FFMPEG_CONFIGURE_FLAGS+=("$line")
 done < ffmpeg_configure_flags.txt
 
-# Install and setup Emscripten if needed
-EMSDK_DIR="$BASE_DIR/emsdk"
-if [ -d "$EMSDK_DIR" ]; then
-    cd "$EMSDK_DIR"
-    if ! command -v emcc &> /dev/null; then
-        # Setup environment variables if not already set
-        if [ -f "./emsdk_env.sh" ]; then
-             source ./emsdk_env.sh
-        fi
+# Check for emcc in PATH (GitHub Actions will have it set up)
+if ! command -v emcc &> /dev/null; then
+    # Try local emsdk as fallback
+    EMSDK_DIR="$BASE_DIR/emsdk"
+    if [ -d "$EMSDK_DIR" ] && [ -f "$EMSDK_DIR/emsdk_env.sh" ]; then
+        # shellcheck source=/dev/null
+        source "$EMSDK_DIR/emsdk_env.sh"
     fi
-    cd "$BASE_DIR"
 fi
 
 if ! command -v emcc &> /dev/null; then
@@ -43,23 +40,18 @@ fi
 
 OUTPUT_DIR=outputs/ffmpeg-$FFMPEG_VERSION-wasm
 
-# Use explicit BUILD_DIR if provided, otherwise create temp directory
-if [ -z "${BUILD_DIR:-}" ]; then
-    BUILD_DIR=$(mktemp -d -p "$(pwd)" build.wasm.XXXXXXXX)
-    CLEANUP_BUILD_DIR=1
-else
-    mkdir -p "$BUILD_DIR"
-    CLEANUP_BUILD_DIR=0
-fi
-
-if [ "$CLEANUP_BUILD_DIR" -eq 1 ]; then
-    trap 'rm -rf "$BUILD_DIR"' EXIT
-fi
+# Use explicit BUILD_DIR if provided, otherwise use default
+BUILD_DIR=${BUILD_DIR:-build-static-wasm}
+mkdir -p "$BUILD_DIR"
 
 cd "$BUILD_DIR"
 tar --strip-components=1 -xf "$BASE_DIR/$FFMPEG_TARBALL"
 
 # WASM specific flags (WASM is always static, no programs)
+# Key points:
+# - NM must be set to llvm-nm (emscripten's nm wrapper has issues)
+# - Use --enable-small to reduce binary size
+# - STANDALONE_WASM=1 for standalone WASM module
 WASM_CONFIGURE_FLAGS=(
     --prefix="$BASE_DIR/$OUTPUT_DIR"
     --target-os=none
@@ -68,13 +60,14 @@ WASM_CONFIGURE_FLAGS=(
     --cc=emcc
     --cxx=em++
     --ar=emar
-    --nm=emnm
     --ranlib=emranlib
+    --nm="llvm-nm"
 
     --disable-stripping
     --disable-inline-asm
     --disable-x86asm
     --disable-asm
+    --disable-runtime-cpudetect
 
     --disable-pthreads
     --disable-w32threads
@@ -84,15 +77,15 @@ WASM_CONFIGURE_FLAGS=(
     --disable-shared
     --disable-programs
 
-    --extra-cflags="-O3 -flto -msimd128"
-    --extra-ldflags="-O3 -flto -msimd128"
+    --extra-cflags="-O3 -msimd128"
+    --extra-ldflags="-O3 -msimd128 -sWASM=1 -sALLOW_MEMORY_GROWTH=1"
 )
 
 echo "Configuring FFmpeg for WASM..."
 ./configure "${WASM_CONFIGURE_FLAGS[@]}" "${FFMPEG_CONFIGURE_FLAGS[@]}" || (cat ffbuild/config.log && exit 1)
 
 echo "Building WASM..."
-make -j$(nproc)
+make -j"$(nproc)"
 make install
 
 cd "$BASE_DIR"
