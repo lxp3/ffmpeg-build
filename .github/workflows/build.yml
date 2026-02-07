@@ -33,39 +33,61 @@ jobs:
     needs: parse-tag
     if: needs.parse-tag.outputs.build_linux == 'true'
     runs-on: ubuntu-latest
+    strategy:
+      fail-fast: true
+      matrix:
+        build_kind: [static, shared, wasm]
     steps:
       - uses: actions/checkout@v4
 
       - name: Build Linux (Static)
+        if: matrix.build_kind == 'static'
         run: |
           docker run --rm \
             -v ${{ github.workspace }}:/workspace \
             -w /workspace \
             -e ARCH=x86_64 \
             -e ENABLE_SHARED=0 \
-            -e BUILD_DIR=/workspace/build-static-linux \
             quay.io/pypa/manylinux2014_x86_64 \
             bash -c "yum install -y nasm patchelf && \
                      chmod +x build-linux.sh && \
                      ./build-linux.sh"
 
       - name: Build Linux (Shared)
+        if: matrix.build_kind == 'shared'
         run: |
           docker run --rm \
             -v ${{ github.workspace }}:/workspace \
             -w /workspace \
             -e ARCH=x86_64 \
             -e ENABLE_SHARED=1 \
-            -e BUILD_DIR=/workspace/build-shared-linux \
             quay.io/pypa/manylinux2014_x86_64 \
             bash -c "yum install -y nasm patchelf && \
                      chmod +x build-linux.sh && \
                      ./build-linux.sh"
 
+      - name: Setup Emscripten
+        if: matrix.build_kind == 'wasm'
+        run: |
+          git clone https://github.com/emscripten-core/emsdk.git
+          cd emsdk
+          ./emsdk install 3.1.51
+          ./emsdk activate 3.1.51
+          source ./emsdk_env.sh
+          echo "EMSDK=$PWD" >> $GITHUB_ENV
+          echo "$PWD" >> $GITHUB_PATH
+          echo "$PWD/upstream/emscripten" >> $GITHUB_PATH
+
+      - name: Build WASM
+        if: matrix.build_kind == 'wasm'
+        run: |
+          chmod +x build-wasm.sh
+          ./build-wasm.sh
+
       - name: Upload Artifacts
         uses: actions/upload-artifact@v4
         with:
-          name: ffmpeg-linux
+          name: ffmpeg-linux-${{ matrix.build_kind }}
           path: outputs/*.tar.gz
 
   build-windows:
@@ -75,10 +97,6 @@ jobs:
     defaults:
       run:
         shell: msys2 {0}
-    strategy:
-      fail-fast: true
-      matrix:
-        build_kind: [static, shared, wasm]
     steps:
       - uses: actions/checkout@v4
 
@@ -97,46 +115,24 @@ jobs:
             diffutils
             tar
 
-      - name: Setup Emscripten
-        if: matrix.build_kind == 'wasm'
-        run: |
-          git clone https://github.com/emscripten-core/emsdk.git
-          cd emsdk
-          ./emsdk install 3.1.51
-          ./emsdk activate 3.1.51
-          source ./emsdk_env.sh
-          echo "EMSDK=$PWD" >> $GITHUB_ENV
-          echo "$PWD" >> $GITHUB_PATH
-          echo "$PWD/upstream/emscripten" >> $GITHUB_PATH
-
       - name: Build Windows (Static)
-        if: matrix.build_kind == 'static'
         run: |
           export ARCH=x86_64
           export ENABLE_SHARED=0
-          export BUILD_DIR=build-static-windows
           chmod +x build-windows.sh
           ./build-windows.sh
 
       - name: Build Windows (Shared)
-        if: matrix.build_kind == 'shared'
         run: |
           export ARCH=x86_64
           export ENABLE_SHARED=1
-          export BUILD_DIR=build-shared-windows
           chmod +x build-windows.sh
           ./build-windows.sh
-
-      - name: Build WASM
-        if: matrix.build_kind == 'wasm'
-        run: |
-          chmod +x build-wasm.sh
-          BUILD_DIR=build-static-wasm ./build-wasm.sh
 
       - name: Upload Artifacts
         uses: actions/upload-artifact@v4
         with:
-          name: ffmpeg-windows-${{ matrix.build_kind }}
+          name: ffmpeg-windows
           path: outputs/*.tar.gz
 
   release:
@@ -150,13 +146,13 @@ jobs:
         if: needs.build-linux.result == 'success'
         uses: actions/download-artifact@v4
         with:
-          name: ffmpeg-linux
           path: artifacts/
 
       - name: Download Windows artifacts
         if: needs.build-windows.result == 'success'
         uses: actions/download-artifact@v4
         with:
+          name: ffmpeg-windows
           path: artifacts/
 
       - name: Create Release

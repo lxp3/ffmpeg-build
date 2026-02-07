@@ -35,18 +35,11 @@ fi
 
 OUTPUT_DIR=outputs/ffmpeg-$FFMPEG_VERSION-$LIB_TYPE-$ARCH-linux-gnu
 
-# Use explicit BUILD_DIR if provided, otherwise create temp directory
+# Use explicit BUILD_DIR if provided, otherwise derive from ENABLE_SHARED
 if [ -z "${BUILD_DIR:-}" ]; then
-    BUILD_DIR=$(mktemp -d -p "$(pwd)" build.XXXXXXXX)
-    CLEANUP_BUILD_DIR=1
-else
-    mkdir -p "$BUILD_DIR"
-    CLEANUP_BUILD_DIR=0
+    BUILD_DIR="$BASE_DIR/build-${LIB_TYPE}-linux"
 fi
-
-if [ "$CLEANUP_BUILD_DIR" -eq 1 ]; then
-    trap 'rm -rf "$BUILD_DIR"' EXIT
-fi
+mkdir -p "$BUILD_DIR"
 
 # Programs control: static = no exe, shared = with exe
 if [ "$LIB_TYPE" = "shared" ]; then

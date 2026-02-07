@@ -51,24 +51,16 @@ export RANLIB=emranlib
 
 OUTPUT_DIR=outputs/ffmpeg-$FFMPEG_VERSION-wasm
 
-# Use explicit BUILD_DIR if provided, otherwise create temp directory
+# WASM is always static; derive BUILD_DIR from ENABLE_SHARED if not provided
+ENABLE_SHARED=${ENABLE_SHARED:-0}
+LIB_TYPE=static
 if [ -z "${BUILD_DIR:-}" ]; then
-    BUILD_DIR=$(mktemp -d -p "$(pwd)" build.wasm.XXXXXXXX)
-    CLEANUP_BUILD_DIR=1
-else
-    mkdir -p "$BUILD_DIR"
-    CLEANUP_BUILD_DIR=0
+    BUILD_DIR="$BASE_DIR/build-${LIB_TYPE}-wasm"
 fi
-
-if [ "$CLEANUP_BUILD_DIR" -eq 1 ]; then
-    trap 'rm -rf "$BUILD_DIR"' EXIT
-fi
+mkdir -p "$BUILD_DIR"
 
 cd "$BUILD_DIR"
 tar --strip-components=1 -xf "$BASE_DIR/$FFMPEG_TARBALL"
-
-# Force emscripten toolchain to avoid MSVC-style flags on Windows
-TOOLCHAIN_FLAGS=(--toolchain=emscripten)
 
 # WASM specific flags (WASM is always static, no programs)
 WASM_CONFIGURE_FLAGS=(
@@ -100,7 +92,7 @@ WASM_CONFIGURE_FLAGS=(
 )
 
 echo "Configuring FFmpeg for WASM..."
-./configure "${TOOLCHAIN_FLAGS[@]}" "${WASM_CONFIGURE_FLAGS[@]}" "${FFMPEG_CONFIGURE_FLAGS[@]}" || (cat ffbuild/config.log && exit 1)
+./configure "${WASM_CONFIGURE_FLAGS[@]}" "${FFMPEG_CONFIGURE_FLAGS[@]}" || (cat ffbuild/config.log && exit 1)
 
 echo "Building WASM..."
 make -j$(nproc)

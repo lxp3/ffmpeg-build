@@ -48,18 +48,11 @@ OUTPUT_DIR=outputs/ffmpeg-$FFMPEG_VERSION-$LIB_TYPE-$ARCH-w64-mingw32
 mkdir -p "$OUTPUT_DIR"
 ABS_OUTPUT_DIR="$BASE_DIR/$OUTPUT_DIR"
 
-# Use explicit BUILD_DIR if provided, otherwise create temp directory
+# Use explicit BUILD_DIR if provided, otherwise derive from ENABLE_SHARED
 if [ -z "${BUILD_DIR:-}" ]; then
-    BUILD_DIR=$(mktemp -d -p . build.windows.XXXXXXXX)
-    CLEANUP_BUILD_DIR=1
-else
-    mkdir -p "$BUILD_DIR"
-    CLEANUP_BUILD_DIR=0
+    BUILD_DIR="$BASE_DIR/build-${LIB_TYPE}-windows"
 fi
-
-if [ "$CLEANUP_BUILD_DIR" -eq 1 ]; then
-    trap 'rm -rf "$BUILD_DIR"' EXIT
-fi
+mkdir -p "$BUILD_DIR"
 
 cd "$BUILD_DIR"
 tar --strip-components=1 -xf "$BASE_DIR/$FFMPEG_TARBALL"
