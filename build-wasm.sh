@@ -41,6 +41,13 @@ if ! command -v emcc &> /dev/null; then
     exit 1
 fi
 
+# Ensure configure uses clang-style toolchain args for Emscripten
+export CC=emcc
+export CXX=em++
+export AR=emar
+export NM=emnm
+export RANLIB=emranlib
+
 OUTPUT_DIR=outputs/ffmpeg-$FFMPEG_VERSION-wasm
 
 # Use explicit BUILD_DIR if provided, otherwise create temp directory
@@ -65,6 +72,7 @@ WASM_CONFIGURE_FLAGS=(
     --target-os=none
     --arch=x86_32
     --enable-cross-compile
+    --toolchain=clang
     --cc=emcc
     --cxx=em++
     --ar=emar
