@@ -1,7 +1,7 @@
 name: Build FFmpeg
 
 on:
-  workflow_dispatch:  # 允许手动触发
+  workflow_dispatch:
   push:
     tags:
       - 'v*'
@@ -37,26 +37,20 @@ jobs:
     needs: parse-tag
     if: needs.parse-tag.outputs.build_linux == 'true'
     runs-on: ubuntu-latest
-    container: quay.io/pypa/manylinux2014_x86_64
     steps:
       - uses: actions/checkout@v4
 
-      - name: Install dependencies
-        run: yum install -y nasm patchelf
-
-      - name: Build Linux (Static)
-        working-directory: 1-manylinux2018
-        run: ./build-linux.sh
-        env:
-          ARCH: x86_64
-          ENABLE_SHARED: 0
-
-      - name: Build Linux (Shared)
-        working-directory: 1-manylinux2018
-        run: ./build-linux.sh
-        env:
-          ARCH: x86_64
-          ENABLE_SHARED: 1
+      # Linux 构建：使用 docker run 替代 container 指令
+      - name: Build Linux (Static & Shared)
+        run: |
+          docker run --rm \
+            -v ${{ github.workspace }}:/workspace \
+            -w /workspace/1-manylinux2018 \
+            -e ARCH=x86_64 \
+            quay.io/pypa/manylinux2014_x86_64 \
+            bash -c "yum install -y nasm patchelf && \
+                     export ENABLE_SHARED=0 && ./build-linux.sh && \
+                     export ENABLE_SHARED=1 && ./build-linux.sh"
 
       - name: Setup Emscripten
         if: needs.parse-tag.outputs.build_wasm == 'true'
@@ -102,15 +96,15 @@ jobs:
             tar
 
       - name: Build Windows (Static)
-        working-directory: 1-manylinux2018
         run: |
+          cd 1-manylinux2018
           export ARCH=x86_64
           export ENABLE_SHARED=0
           ./build-windows.sh
 
       - name: Build Windows (Shared)
-        working-directory: 1-manylinux2018
         run: |
+          cd 1-manylinux2018
           export ARCH=x86_64
           export ENABLE_SHARED=1
           ./build-windows.sh
