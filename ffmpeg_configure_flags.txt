@@ -3,9 +3,6 @@
 --disable-debug
 --enable-avdevice
 --enable-swscale
---disable-programs
---enable-ffmpeg
---enable-ffprobe
 --disable-network
 --disable-muxers
 --disable-demuxers

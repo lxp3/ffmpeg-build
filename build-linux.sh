@@ -2,7 +2,7 @@
 
 set -eu
 
-cd $(dirname $0)
+cd "$(dirname "$0")"
 BASE_DIR=$(pwd)
 
 # Read version
@@ -11,9 +11,9 @@ FFMPEG_TARBALL=ffmpeg-$FFMPEG_VERSION.tar.gz
 FFMPEG_TARBALL_URL=http://ffmpeg.org/releases/$FFMPEG_TARBALL
 
 # Download tarball if missing
-if [ ! -e $FFMPEG_TARBALL ]; then
+if [ ! -e "$FFMPEG_TARBALL" ]; then
 	echo "Downloading $FFMPEG_TARBALL..."
-	curl -s -L -O $FFMPEG_TARBALL_URL
+	curl -s -L -O "$FFMPEG_TARBALL_URL"
 fi
 
 # Read flags (remove any Windows line endings)
@@ -34,6 +34,35 @@ else
 fi
 
 OUTPUT_DIR=outputs/ffmpeg-$FFMPEG_VERSION-$LIB_TYPE-$ARCH-linux-gnu
+
+# Use explicit BUILD_DIR if provided, otherwise create temp directory
+if [ -z "${BUILD_DIR:-}" ]; then
+    BUILD_DIR=$(mktemp -d -p "$(pwd)" build.XXXXXXXX)
+    CLEANUP_BUILD_DIR=1
+else
+    mkdir -p "$BUILD_DIR"
+    CLEANUP_BUILD_DIR=0
+fi
+
+if [ "$CLEANUP_BUILD_DIR" -eq 1 ]; then
+    trap 'rm -rf "$BUILD_DIR"' EXIT
+fi
+
+# Programs control: static = no exe, shared = with exe
+if [ "$LIB_TYPE" = "shared" ]; then
+    FFMPEG_CONFIGURE_FLAGS+=(
+        --enable-shared
+        --disable-static
+        --enable-ffmpeg
+        --enable-ffprobe
+    )
+else
+    FFMPEG_CONFIGURE_FLAGS+=(
+        --enable-static
+        --disable-shared
+        --disable-programs
+    )
+fi
 
 case $ARCH in
     x86_64)
@@ -87,27 +116,12 @@ case $ARCH in
         ;;
 esac
 
-BUILD_DIR=$(mktemp -d -p $(pwd) build.XXXXXXXX)
-trap 'rm -rf $BUILD_DIR' EXIT
-
-cd $BUILD_DIR
-tar --strip-components=1 -xf $BASE_DIR/$FFMPEG_TARBALL
+cd "$BUILD_DIR"
+tar --strip-components=1 -xf "$BASE_DIR/$FFMPEG_TARBALL"
 
 FFMPEG_CONFIGURE_FLAGS+=(
-    --prefix=$BASE_DIR/$OUTPUT_DIR
+    --prefix="$BASE_DIR/$OUTPUT_DIR"
 )
-
-if [ "$LIB_TYPE" = "shared" ]; then
-    FFMPEG_CONFIGURE_FLAGS+=(
-        --enable-shared
-        --disable-static
-    )
-else
-    FFMPEG_CONFIGURE_FLAGS+=(
-        --enable-static
-        --disable-shared
-    )
-fi
 
 echo "Configuring FFmpeg..."
 ./configure "${FFMPEG_CONFIGURE_FLAGS[@]}" || (cat ffbuild/config.log && exit 1)
@@ -154,10 +168,15 @@ if [ "$LIB_TYPE" = "shared" ]; then
     fi
 fi
 
-cd $BASE_DIR
+cd "$BASE_DIR"
 TAR_NAME="${OUTPUT_DIR}.tar.gz"
 echo "Packaging to $TAR_NAME ..."
 tar czf "$TAR_NAME" -C outputs "$(basename "$OUTPUT_DIR")"
 
-chown $(stat -c '%u:%g' $BASE_DIR) "$TAR_NAME"
-chown $(stat -c '%u:%g' $BASE_DIR) -R "$OUTPUT_DIR"
+# Only chown if running as root
+if [ "$(id -u)" -eq 0 ]; then
+    chown "$(stat -c '%u:%g' "$BASE_DIR")" "$TAR_NAME"
+    chown "$(stat -c '%u:%g' "$BASE_DIR")" -R "$OUTPUT_DIR"
+fi
+
+echo "Linux build complete. Output: $OUTPUT_DIR"

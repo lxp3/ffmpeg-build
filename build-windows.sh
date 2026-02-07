@@ -2,7 +2,7 @@
 
 set -eu
 
-cd $(dirname $0)
+cd "$(dirname "$0")"
 BASE_DIR=$(pwd)
 
 FFMPEG_VERSION=7.1
@@ -10,9 +10,9 @@ FFMPEG_TARBALL=ffmpeg-$FFMPEG_VERSION.tar.gz
 FFMPEG_TARBALL_URL=http://ffmpeg.org/releases/$FFMPEG_TARBALL
 
 # Download tarball if missing
-if [ ! -e $FFMPEG_TARBALL ]; then
+if [ ! -e "$FFMPEG_TARBALL" ]; then
 	echo "Downloading $FFMPEG_TARBALL..."
-	curl -s -L -O $FFMPEG_TARBALL_URL
+	curl -s -L -O "$FFMPEG_TARBALL_URL"
 fi
 
 # Args
@@ -26,24 +26,43 @@ while IFS= read -r line || [[ -n "$line" ]]; do
     [[ -n "$line" ]] && FFMPEG_CONFIGURE_FLAGS+=("$line")
 done < ffmpeg_configure_flags.txt
 
-# Determine Lib Type
+# Determine Lib Type and programs
 if [ "$ENABLE_SHARED" -eq 1 ]; then
     LIB_TYPE=shared
-    FFMPEG_CONFIGURE_FLAGS+=( --enable-shared --disable-static )
+    FFMPEG_CONFIGURE_FLAGS+=(
+        --enable-shared
+        --disable-static
+        --enable-ffmpeg
+        --enable-ffprobe
+    )
 else
     LIB_TYPE=static
-    FFMPEG_CONFIGURE_FLAGS+=( --enable-static --disable-shared )
+    FFMPEG_CONFIGURE_FLAGS+=(
+        --enable-static
+        --disable-shared
+        --disable-programs
+    )
 fi
 
 OUTPUT_DIR=outputs/ffmpeg-$FFMPEG_VERSION-$LIB_TYPE-$ARCH-w64-mingw32
 mkdir -p "$OUTPUT_DIR"
 ABS_OUTPUT_DIR="$BASE_DIR/$OUTPUT_DIR"
 
-BUILD_DIR=$(mktemp -d -p . build.windows.XXXXXXXX)
-trap 'rm -rf $BUILD_DIR' EXIT
+# Use explicit BUILD_DIR if provided, otherwise create temp directory
+if [ -z "${BUILD_DIR:-}" ]; then
+    BUILD_DIR=$(mktemp -d -p . build.windows.XXXXXXXX)
+    CLEANUP_BUILD_DIR=1
+else
+    mkdir -p "$BUILD_DIR"
+    CLEANUP_BUILD_DIR=0
+fi
 
-cd $BUILD_DIR
-tar --strip-components=1 -xf ../$FFMPEG_TARBALL
+if [ "$CLEANUP_BUILD_DIR" -eq 1 ]; then
+    trap 'rm -rf "$BUILD_DIR"' EXIT
+fi
+
+cd "$BUILD_DIR"
+tar --strip-components=1 -xf "$BASE_DIR/$FFMPEG_TARBALL"
 
 # Windows specific flags with O3 and SIMD optimizations
 EXTRA_CFLAGS="-O3 -D_WIN32_WINNT=0x0601 -DWINVER=0x0601 -msse4.2 -mavx2 -ffunction-sections -fdata-sections"
@@ -53,7 +72,7 @@ echo "Configuring FFmpeg for Windows ($ARCH)..."
 ./configure \
     "${FFMPEG_CONFIGURE_FLAGS[@]}" \
     --prefix="$ABS_OUTPUT_DIR" \
-    --arch=$ARCH \
+    --arch="$ARCH" \
     --target-os=mingw32 \
     --enable-runtime-cpudetect \
     --extra-libs='-lpsapi -lole32 -lstrmiids -luuid -lgdi32' \

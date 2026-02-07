@@ -40,17 +40,31 @@ jobs:
     steps:
       - uses: actions/checkout@v4
 
-      - name: Build Linux (Static & Shared)
+      - name: Build Linux (Static)
         run: |
           docker run --rm \
             -v ${{ github.workspace }}:/workspace \
             -w /workspace \
             -e ARCH=x86_64 \
+            -e ENABLE_SHARED=0 \
+            -e BUILD_DIR=/workspace/build-static-linux \
             quay.io/pypa/manylinux2014_x86_64 \
             bash -c "yum install -y nasm patchelf && \
                      chmod +x build-linux.sh && \
-                     ENABLE_SHARED=0 ./build-linux.sh && \
-                     ENABLE_SHARED=1 ./build-linux.sh"
+                     ./build-linux.sh"
+
+      - name: Build Linux (Shared)
+        run: |
+          docker run --rm \
+            -v ${{ github.workspace }}:/workspace \
+            -w /workspace \
+            -e ARCH=x86_64 \
+            -e ENABLE_SHARED=1 \
+            -e BUILD_DIR=/workspace/build-shared-linux \
+            quay.io/pypa/manylinux2014_x86_64 \
+            bash -c "yum install -y nasm patchelf && \
+                     chmod +x build-linux.sh && \
+                     ./build-linux.sh"
 
       - name: Setup Emscripten
         if: needs.parse-tag.outputs.build_wasm == 'true'
@@ -63,7 +77,7 @@ jobs:
         if: needs.parse-tag.outputs.build_wasm == 'true'
         run: |
           chmod +x build-wasm.sh
-          ./build-wasm.sh
+          BUILD_DIR=build-static-wasm ./build-wasm.sh
 
       - name: Upload Artifacts
         uses: actions/upload-artifact@v4
@@ -100,6 +114,7 @@ jobs:
         run: |
           export ARCH=x86_64
           export ENABLE_SHARED=0
+          export BUILD_DIR=build-static-windows
           chmod +x build-windows.sh
           ./build-windows.sh
 
@@ -107,6 +122,8 @@ jobs:
         run: |
           export ARCH=x86_64
           export ENABLE_SHARED=1
+          export BUILD_DIR=build-shared-windows
+          chmod +x build-windows.sh
           ./build-windows.sh
 
       - name: Upload Artifacts
