@@ -66,6 +66,12 @@ fi
 cd "$BUILD_DIR"
 tar --strip-components=1 -xf "$BASE_DIR/$FFMPEG_TARBALL"
 
+# Use emscripten toolchain if supported by this FFmpeg version
+TOOLCHAIN_FLAGS=()
+if ./configure --help | grep -q "toolchain=emscripten"; then
+    TOOLCHAIN_FLAGS+=(--toolchain=emscripten)
+fi
+
 # WASM specific flags (WASM is always static, no programs)
 WASM_CONFIGURE_FLAGS=(
     --prefix="$BASE_DIR/$OUTPUT_DIR"
@@ -96,7 +102,7 @@ WASM_CONFIGURE_FLAGS=(
 )
 
 echo "Configuring FFmpeg for WASM..."
-./configure "${WASM_CONFIGURE_FLAGS[@]}" "${FFMPEG_CONFIGURE_FLAGS[@]}" || (cat ffbuild/config.log && exit 1)
+./configure "${TOOLCHAIN_FLAGS[@]}" "${WASM_CONFIGURE_FLAGS[@]}" "${FFMPEG_CONFIGURE_FLAGS[@]}" || (cat ffbuild/config.log && exit 1)
 
 echo "Building WASM..."
 make -j$(nproc)
