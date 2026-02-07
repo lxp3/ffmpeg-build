@@ -5,15 +5,49 @@ set -eu
 cd "$(dirname "$0")"
 BASE_DIR=$(pwd)
 
-# Read version
+# Emscripten version
+EMSDK_VERSION=3.1.51
+EMSDK_DIR="$BASE_DIR/emsdk"
+
+# FFmpeg version
 FFMPEG_VERSION=7.1
 FFMPEG_TARBALL=ffmpeg-$FFMPEG_VERSION.tar.gz
 FFMPEG_TARBALL_URL=http://ffmpeg.org/releases/$FFMPEG_TARBALL
 
+echo "=== Setting up Emscripten ==="
+
+# Clone emsdk if not exists
+if [ ! -d "$EMSDK_DIR" ]; then
+    echo "Cloning emsdk..."
+    git clone https://github.com/emscripten-core/emsdk.git "$EMSDK_DIR"
+fi
+
+# Install and activate emsdk
+cd "$EMSDK_DIR"
+echo "Installing Emscripten $EMSDK_VERSION..."
+./emsdk install $EMSDK_VERSION
+
+echo "Activating Emscripten $EMSDK_VERSION..."
+./emsdk activate $EMSDK_VERSION
+
+echo "Loading Emscripten environment..."
+source ./emsdk_env.sh
+
+cd "$BASE_DIR"
+
+# Verify emcc is available
+if ! command -v emcc &> /dev/null; then
+    echo "Error: emcc not found. Emscripten setup failed."
+    exit 1
+fi
+echo "emcc found: $(which emcc)"
+
+echo "=== Downloading FFmpeg ==="
+
 # Download tarball if missing
 if [ ! -e "$FFMPEG_TARBALL" ]; then
-	echo "Downloading $FFMPEG_TARBALL..."
-	curl -s -L -O "$FFMPEG_TARBALL_URL"
+    echo "Downloading $FFMPEG_TARBALL..."
+    curl -s -L -O "$FFMPEG_TARBALL_URL"
 fi
 
 # Read flags (remove any Windows line endings)
@@ -22,25 +56,6 @@ while IFS= read -r line || [[ -n "$line" ]]; do
     line="${line%$'\r'}"
     [[ -n "$line" ]] && FFMPEG_CONFIGURE_FLAGS+=("$line")
 done < ffmpeg_configure_flags.txt
-
-# Install and setup Emscripten if needed
-# Prefer EMSDK env from CI (e.g., setup-emsdk), fallback to local ./emsdk
-if ! command -v emcc &> /dev/null; then
-    if [ -n "${EMSDK:-}" ] && [ -f "$EMSDK/emsdk_env.sh" ]; then
-        # EMSDK is usually set by setup-emsdk action
-        source "$EMSDK/emsdk_env.sh"
-    else
-        EMSDK_DIR="$BASE_DIR/emsdk"
-        if [ -d "$EMSDK_DIR" ] && [ -f "$EMSDK_DIR/emsdk_env.sh" ]; then
-            source "$EMSDK_DIR/emsdk_env.sh"
-        fi
-    fi
-fi
-
-if ! command -v emcc &> /dev/null; then
-    echo "Error: emcc not found. Please setup Emscripten."
-    exit 1
-fi
 
 # Ensure configure uses clang-style toolchain args for Emscripten
 export CC=emcc
@@ -74,10 +89,12 @@ WASM_CONFIGURE_FLAGS=(
     --nm=emnm
     --ranlib=emranlib
 
+    --disable-autodetect
     --disable-stripping
     --disable-inline-asm
     --disable-x86asm
     --disable-asm
+    --disable-runtime-cpudetect
 
     --disable-pthreads
     --disable-w32threads
@@ -87,8 +104,8 @@ WASM_CONFIGURE_FLAGS=(
     --disable-shared
     --disable-programs
 
-    --extra-cflags="-O3 -flto -msimd128"
-    --extra-ldflags="-O3 -flto -msimd128"
+    --extra-cflags="-O3 -msimd128"
+    --extra-ldflags="-O3 -msimd128 -sWASM=1"
 )
 
 echo "Configuring FFmpeg for WASM..."
