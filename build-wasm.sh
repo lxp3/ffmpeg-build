@@ -67,11 +67,8 @@ fi
 cd "$BUILD_DIR"
 tar --strip-components=1 -xf "$BASE_DIR/$FFMPEG_TARBALL"
 
-# Use emscripten toolchain if supported by this FFmpeg version
-TOOLCHAIN_FLAGS=()
-if ./configure --help | grep -q "toolchain=emscripten"; then
-    TOOLCHAIN_FLAGS+=(--toolchain=emscripten)
-fi
+# Force emscripten toolchain to avoid MSVC-style flags on Windows
+TOOLCHAIN_FLAGS=(--toolchain=emscripten)
 
 # WASM specific flags (WASM is always static, no programs)
 WASM_CONFIGURE_FLAGS=(
