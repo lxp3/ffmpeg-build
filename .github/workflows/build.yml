@@ -11,7 +11,6 @@ jobs:
     runs-on: ubuntu-latest
     outputs:
       build_linux: ${{ steps.parse.outputs.build_linux }}
-      build_wasm: ${{ steps.parse.outputs.build_wasm }}
       build_windows: ${{ steps.parse.outputs.build_windows }}
       version: ${{ steps.parse.outputs.version }}
     steps:
@@ -20,19 +19,12 @@ jobs:
           TAG="${GITHUB_REF#refs/tags/}"
           if [[ "$TAG" == *-linux ]]; then
             echo "build_linux=true" >> $GITHUB_OUTPUT
-            echo "build_wasm=false" >> $GITHUB_OUTPUT
             echo "build_windows=false" >> $GITHUB_OUTPUT
           elif [[ "$TAG" == *-window ]]; then
             echo "build_linux=false" >> $GITHUB_OUTPUT
-            echo "build_wasm=false" >> $GITHUB_OUTPUT
             echo "build_windows=true" >> $GITHUB_OUTPUT
-          elif [[ "$TAG" == *-wasm ]]; then
-            echo "build_linux=false" >> $GITHUB_OUTPUT
-            echo "build_wasm=true" >> $GITHUB_OUTPUT
-            echo "build_windows=false" >> $GITHUB_OUTPUT
           else
             echo "build_linux=true" >> $GITHUB_OUTPUT
-            echo "build_wasm=true" >> $GITHUB_OUTPUT
             echo "build_windows=true" >> $GITHUB_OUTPUT
           fi
           echo "version=${TAG}" >> $GITHUB_OUTPUT
@@ -76,30 +68,6 @@ jobs:
           name: ffmpeg-linux
           path: outputs/*.tar.gz
 
-  build-wasm:
-    needs: parse-tag
-    if: needs.parse-tag.outputs.build_wasm == 'true'
-    runs-on: ubuntu-latest
-    steps:
-      - uses: actions/checkout@v4
-
-      - name: Setup Emscripten
-        uses: mymindstorm/setup-emsdk@v14
-        with:
-          version: 3.1.51
-          actions-cache-folder: 'emsdk-cache'
-
-      - name: Build WASM
-        run: |
-          chmod +x build-wasm.sh
-          BUILD_DIR=build-static-wasm ./build-wasm.sh
-
-      - name: Upload Artifacts
-        uses: actions/upload-artifact@v4
-        with:
-          name: ffmpeg-wasm
-          path: outputs/*.tar.gz
-
   build-windows:
     needs: parse-tag
     if: needs.parse-tag.outputs.build_windows == 'true'
@@ -107,6 +75,10 @@ jobs:
     defaults:
       run:
         shell: msys2 {0}
+    strategy:
+      fail-fast: true
+      matrix:
+        build_kind: [static, shared, wasm]
     steps:
       - uses: actions/checkout@v4
 
@@ -125,7 +97,15 @@ jobs:
             diffutils
             tar
 
+      - name: Setup Emscripten
+        if: matrix.build_kind == 'wasm'
+        uses: mymindstorm/setup-emsdk@v14
+        with:
+          version: 3.1.51
+          actions-cache-folder: 'emsdk-cache'
+
       - name: Build Windows (Static)
+        if: matrix.build_kind == 'static'
         run: |
           export ARCH=x86_64
           export ENABLE_SHARED=0
@@ -134,6 +114,7 @@ jobs:
           ./build-windows.sh
 
       - name: Build Windows (Shared)
+        if: matrix.build_kind == 'shared'
         run: |
           export ARCH=x86_64
           export ENABLE_SHARED=1
@@ -141,15 +122,21 @@ jobs:
           chmod +x build-windows.sh
           ./build-windows.sh
 
+      - name: Build WASM
+        if: matrix.build_kind == 'wasm'
+        run: |
+          chmod +x build-wasm.sh
+          BUILD_DIR=build-static-wasm ./build-wasm.sh
+
       - name: Upload Artifacts
         uses: actions/upload-artifact@v4
         with:
-          name: ffmpeg-windows
+          name: ffmpeg-windows-${{ matrix.build_kind }}
           path: outputs/*.tar.gz
 
   release:
-    needs: [parse-tag, build-linux, build-wasm, build-windows]
-    if: needs.build-linux.result == 'success' || needs.build-wasm.result == 'success' || needs.build-windows.result == 'success'
+    needs: [parse-tag, build-linux, build-windows]
+    if: needs.build-linux.result == 'success' || needs.build-windows.result == 'success'
     runs-on: ubuntu-latest
     permissions:
       contents: write
@@ -161,18 +148,10 @@ jobs:
           name: ffmpeg-linux
           path: artifacts/
 
-      - name: Download WASM artifacts
-        if: needs.build-wasm.result == 'success'
-        uses: actions/download-artifact@v4
-        with:
-          name: ffmpeg-wasm
-          path: artifacts/
-
       - name: Download Windows artifacts
         if: needs.build-windows.result == 'success'
         uses: actions/download-artifact@v4
         with:
-          name: ffmpeg-windows
           path: artifacts/
 
       - name: Create Release
