@@ -40,17 +40,17 @@ jobs:
     steps:
       - uses: actions/checkout@v4
 
-      # Linux 构建：使用 docker run 替代 container 指令
       - name: Build Linux (Static & Shared)
         run: |
           docker run --rm \
             -v ${{ github.workspace }}:/workspace \
-            -w /workspace/1-manylinux2018 \
+            -w /workspace \
             -e ARCH=x86_64 \
             quay.io/pypa/manylinux2014_x86_64 \
             bash -c "yum install -y nasm patchelf && \
-                     export ENABLE_SHARED=0 && ./build-linux.sh && \
-                     export ENABLE_SHARED=1 && ./build-linux.sh"
+                     chmod +x build-linux.sh && \
+                     ENABLE_SHARED=0 ./build-linux.sh && \
+                     ENABLE_SHARED=1 ./build-linux.sh"
 
       - name: Setup Emscripten
         if: needs.parse-tag.outputs.build_wasm == 'true'
@@ -61,14 +61,15 @@ jobs:
 
       - name: Build WASM
         if: needs.parse-tag.outputs.build_wasm == 'true'
-        working-directory: 1-manylinux2018
-        run: ./build-wasm.sh
+        run: |
+          chmod +x build-wasm.sh
+          ./build-wasm.sh
 
       - name: Upload Artifacts
         uses: actions/upload-artifact@v4
         with:
           name: ffmpeg-linux-wasm
-          path: 1-manylinux2018/outputs/*.tar.gz
+          path: outputs/*.tar.gz
 
   build-windows:
     needs: parse-tag
@@ -97,14 +98,13 @@ jobs:
 
       - name: Build Windows (Static)
         run: |
-          cd 1-manylinux2018
           export ARCH=x86_64
           export ENABLE_SHARED=0
+          chmod +x build-windows.sh
           ./build-windows.sh
 
       - name: Build Windows (Shared)
         run: |
-          cd 1-manylinux2018
           export ARCH=x86_64
           export ENABLE_SHARED=1
           ./build-windows.sh
@@ -113,7 +113,7 @@ jobs:
         uses: actions/upload-artifact@v4
         with:
           name: ffmpeg-windows
-          path: 1-manylinux2018/outputs/*.tar.gz
+          path: outputs/*.tar.gz
 
   release:
     needs: [parse-tag, build-linux-wasm, build-windows]
