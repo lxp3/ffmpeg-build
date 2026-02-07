@@ -72,7 +72,6 @@ WASM_CONFIGURE_FLAGS=(
     --target-os=none
     --arch=x86_32
     --enable-cross-compile
-    --toolchain=clang
     --cc=emcc
     --cxx=em++
     --ar=emar

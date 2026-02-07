@@ -20,12 +20,16 @@ jobs:
           TAG="${GITHUB_REF#refs/tags/}"
           if [[ "$TAG" == *-linux ]]; then
             echo "build_linux=true" >> $GITHUB_OUTPUT
-            echo "build_wasm=true" >> $GITHUB_OUTPUT
+            echo "build_wasm=false" >> $GITHUB_OUTPUT
             echo "build_windows=false" >> $GITHUB_OUTPUT
           elif [[ "$TAG" == *-window ]]; then
             echo "build_linux=false" >> $GITHUB_OUTPUT
             echo "build_wasm=false" >> $GITHUB_OUTPUT
             echo "build_windows=true" >> $GITHUB_OUTPUT
+          elif [[ "$TAG" == *-wasm ]]; then
+            echo "build_linux=false" >> $GITHUB_OUTPUT
+            echo "build_wasm=true" >> $GITHUB_OUTPUT
+            echo "build_windows=false" >> $GITHUB_OUTPUT
           else
             echo "build_linux=true" >> $GITHUB_OUTPUT
             echo "build_wasm=true" >> $GITHUB_OUTPUT
@@ -33,7 +37,7 @@ jobs:
           fi
           echo "version=${TAG}" >> $GITHUB_OUTPUT
 
-  build-linux-wasm:
+  build-linux:
     needs: parse-tag
     if: needs.parse-tag.outputs.build_linux == 'true'
     runs-on: ubuntu-latest
@@ -66,15 +70,26 @@ jobs:
                      chmod +x build-linux.sh && \
                      ./build-linux.sh"
 
+      - name: Upload Artifacts
+        uses: actions/upload-artifact@v4
+        with:
+          name: ffmpeg-linux
+          path: outputs/*.tar.gz
+
+  build-wasm:
+    needs: parse-tag
+    if: needs.parse-tag.outputs.build_wasm == 'true'
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
       - name: Setup Emscripten
-        if: needs.parse-tag.outputs.build_wasm == 'true'
         uses: mymindstorm/setup-emsdk@v14
         with:
           version: 3.1.51
           actions-cache-folder: 'emsdk-cache'
 
       - name: Build WASM
-        if: needs.parse-tag.outputs.build_wasm == 'true'
         run: |
           chmod +x build-wasm.sh
           BUILD_DIR=build-static-wasm ./build-wasm.sh
@@ -82,7 +97,7 @@ jobs:
       - name: Upload Artifacts
         uses: actions/upload-artifact@v4
         with:
-          name: ffmpeg-linux-wasm
+          name: ffmpeg-wasm
           path: outputs/*.tar.gz
 
   build-windows:
@@ -133,17 +148,24 @@ jobs:
           path: outputs/*.tar.gz
 
   release:
-    needs: [parse-tag, build-linux-wasm, build-windows]
-    if: always() && (needs.build-linux-wasm.result == 'success' || needs.build-windows.result == 'success')
+    needs: [parse-tag, build-linux, build-wasm, build-windows]
+    if: needs.build-linux.result == 'success' || needs.build-wasm.result == 'success' || needs.build-windows.result == 'success'
     runs-on: ubuntu-latest
     permissions:
       contents: write
     steps:
       - name: Download Linux/WASM artifacts
-        if: needs.build-linux-wasm.result == 'success'
+        if: needs.build-linux.result == 'success'
         uses: actions/download-artifact@v4
         with:
-          name: ffmpeg-linux-wasm
+          name: ffmpeg-linux
+          path: artifacts/
+
+      - name: Download WASM artifacts
+        if: needs.build-wasm.result == 'success'
+        uses: actions/download-artifact@v4
+        with:
+          name: ffmpeg-wasm
           path: artifacts/
 
       - name: Download Windows artifacts
