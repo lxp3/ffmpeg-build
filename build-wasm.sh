@@ -16,8 +16,12 @@ if [ ! -e $FFMPEG_TARBALL ]; then
 	curl -s -L -O $FFMPEG_TARBALL_URL
 fi
 
-# Read flags
-mapfile -t FFMPEG_CONFIGURE_FLAGS < ffmpeg_configure_flags.txt
+# Read flags (remove any Windows line endings)
+FFMPEG_CONFIGURE_FLAGS=()
+while IFS= read -r line || [[ -n "$line" ]]; do
+    line="${line%$'\r'}"
+    [[ -n "$line" ]] && FFMPEG_CONFIGURE_FLAGS+=("$line")
+done < ffmpeg_configure_flags.txt
 
 # Install and setup Emscripten if needed
 EMSDK_DIR="$BASE_DIR/emsdk"

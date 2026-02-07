@@ -19,8 +19,12 @@ fi
 ARCH=${ARCH:-x86_64}
 ENABLE_SHARED=${ENABLE_SHARED:-0}
 
-# Read flags
-mapfile -t FFMPEG_CONFIGURE_FLAGS < ffmpeg_configure_flags.txt
+# Read flags (remove any Windows line endings)
+FFMPEG_CONFIGURE_FLAGS=()
+while IFS= read -r line || [[ -n "$line" ]]; do
+    line="${line%$'\r'}"
+    [[ -n "$line" ]] && FFMPEG_CONFIGURE_FLAGS+=("$line")
+done < ffmpeg_configure_flags.txt
 
 # Determine Lib Type
 if [ "$ENABLE_SHARED" -eq 1 ]; then
