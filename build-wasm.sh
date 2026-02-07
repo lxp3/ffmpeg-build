@@ -24,16 +24,17 @@ while IFS= read -r line || [[ -n "$line" ]]; do
 done < ffmpeg_configure_flags.txt
 
 # Install and setup Emscripten if needed
-EMSDK_DIR="$BASE_DIR/emsdk"
-if [ -d "$EMSDK_DIR" ]; then
-    cd "$EMSDK_DIR"
-    if ! command -v emcc &> /dev/null; then
-        # Setup environment variables if not already set
-        if [ -f "./emsdk_env.sh" ]; then
-             source ./emsdk_env.sh
+# Prefer EMSDK env from CI (e.g., setup-emsdk), fallback to local ./emsdk
+if ! command -v emcc &> /dev/null; then
+    if [ -n "${EMSDK:-}" ] && [ -f "$EMSDK/emsdk_env.sh" ]; then
+        # EMSDK is usually set by setup-emsdk action
+        source "$EMSDK/emsdk_env.sh"
+    else
+        EMSDK_DIR="$BASE_DIR/emsdk"
+        if [ -d "$EMSDK_DIR" ] && [ -f "$EMSDK_DIR/emsdk_env.sh" ]; then
+            source "$EMSDK_DIR/emsdk_env.sh"
         fi
     fi
-    cd "$BASE_DIR"
 fi
 
 if ! command -v emcc &> /dev/null; then
