@@ -93,13 +93,6 @@ echo "Configuring FFmpeg for Windows ($ARCH, Toolchain=$TOOLCHAIN)..."
     --extra-cflags="$EXTRA_CFLAGS" \
     --extra-ldflags="$EXTRA_LDFLAGS"
 
-# Fix awk syntax error in MSVC dependency generation
-if [ "$TOOLCHAIN" = "msvc" ]; then
-    echo "Applying MSVC makefile patches..."
-    # Fix the backslash escape in config.mak (where the awk command is defined)
-    sed -i 's|gsub(/\\/, "/")|gsub(/\\\\/, "/")|g' ffbuild/config.mak
-fi
-
 echo "Building..."
 make -j$(nproc)
 make install

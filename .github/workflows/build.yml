@@ -12,22 +12,61 @@ jobs:
     outputs:
       build_linux: ${{ steps.parse.outputs.build_linux }}
       build_windows: ${{ steps.parse.outputs.build_windows }}
+      build_msvc_static: ${{ steps.parse.outputs.build_msvc_static }}
+      build_msvc_shared: ${{ steps.parse.outputs.build_msvc_shared }}
+      build_mingw_static: ${{ steps.parse.outputs.build_mingw_static }}
+      build_mingw_shared: ${{ steps.parse.outputs.build_mingw_shared }}
       version: ${{ steps.parse.outputs.version }}
     steps:
       - id: parse
         run: |
           TAG="${GITHUB_REF#refs/tags/}"
-          if [[ "$TAG" == *-linux ]]; then
-            echo "build_linux=true" >> $GITHUB_OUTPUT
-            echo "build_windows=false" >> $GITHUB_OUTPUT
-          elif [[ "$TAG" == *-window ]]; then
-            echo "build_linux=false" >> $GITHUB_OUTPUT
-            echo "build_windows=true" >> $GITHUB_OUTPUT
-          else
-            echo "build_linux=true" >> $GITHUB_OUTPUT
-            echo "build_windows=true" >> $GITHUB_OUTPUT
-          fi
           echo "version=${TAG}" >> $GITHUB_OUTPUT
+
+          # Default: all disabled
+          BUILD_LINUX=false
+          BUILD_WINDOWS=false
+          BUILD_MSVC_STATIC=false
+          BUILD_MSVC_SHARED=false
+          BUILD_MINGW_STATIC=false
+          BUILD_MINGW_SHARED=false
+
+          # Parse tag for specific builds
+          if [[ "$TAG" == *-window-msvc-0 ]]; then
+            BUILD_WINDOWS=true
+            BUILD_MSVC_STATIC=true
+          elif [[ "$TAG" == *-window-msvc-1 ]]; then
+            BUILD_WINDOWS=true
+            BUILD_MSVC_SHARED=true
+          elif [[ "$TAG" == *-window-mingw-0 ]]; then
+            BUILD_WINDOWS=true
+            BUILD_MINGW_STATIC=true
+          elif [[ "$TAG" == *-window-mingw-1 ]]; then
+            BUILD_WINDOWS=true
+            BUILD_MINGW_SHARED=true
+          elif [[ "$TAG" == *-window ]]; then
+            BUILD_WINDOWS=true
+            BUILD_MSVC_STATIC=true
+            BUILD_MSVC_SHARED=true
+            BUILD_MINGW_STATIC=true
+            BUILD_MINGW_SHARED=true
+          elif [[ "$TAG" == *-linux ]]; then
+            BUILD_LINUX=true
+          else
+            BUILD_LINUX=true
+            BUILD_WINDOWS=true
+            BUILD_MSVC_STATIC=true
+            BUILD_MSVC_SHARED=true
+            BUILD_MINGW_STATIC=true
+            BUILD_MINGW_SHARED=true
+          fi
+
+          echo "build_linux=$BUILD_LINUX" >> $GITHUB_OUTPUT
+          echo "build_windows=$BUILD_WINDOWS" >> $GITHUB_OUTPUT
+          echo "build_msvc_static=$BUILD_MSVC_STATIC" >> $GITHUB_OUTPUT
+          echo "build_msvc_shared=$BUILD_MSVC_SHARED" >> $GITHUB_OUTPUT
+          echo "build_mingw_static=$BUILD_MINGW_STATIC" >> $GITHUB_OUTPUT
+          echo "build_mingw_shared=$BUILD_MINGW_SHARED" >> $GITHUB_OUTPUT
 
   build-linux:
     needs: parse-tag
@@ -59,26 +98,10 @@ jobs:
           name: ffmpeg-linux-artifacts
           path: outputs/*.tar.gz
 
-  build-windows:
+  build-windows-msvc-static:
     needs: parse-tag
-    if: needs.parse-tag.outputs.build_windows == 'true'
+    if: needs.parse-tag.outputs.build_msvc_static == 'true'
     runs-on: windows-latest
-    strategy:
-      fail-fast: true
-      matrix:
-        include:
-          - toolchain: msvc
-            shared: 0
-            name: msvc-static
-          - toolchain: msvc
-            shared: 1
-            name: msvc-shared
-          - toolchain: mingw
-            shared: 0
-            name: mingw-static
-          - toolchain: mingw
-            shared: 1
-            name: mingw-shared
     steps:
       - uses: actions/checkout@v4
 
@@ -96,37 +119,128 @@ jobs:
             diffutils
             tar
 
-      - name: Build Windows MSVC (${{ matrix.name }})
-        if: matrix.toolchain == 'msvc'
+      - name: Build Windows MSVC Static
         shell: pwsh
         run: |
           $ErrorActionPreference = "Stop"
-          .\build-msvc.ps1 -Toolchain msvc -EnableShared ${{ matrix.shared }}
+          .\build-msvc.ps1 -Toolchain msvc -EnableShared 0
 
-      - name: Build Windows MinGW (${{ matrix.name }})
-        if: matrix.toolchain == 'mingw'
+      - name: Upload Artifacts
+        uses: actions/upload-artifact@v4
+        with:
+          name: ffmpeg-windows-msvc-static
+          path: outputs/*.tar.gz
+
+  build-windows-msvc-shared:
+    needs: parse-tag
+    if: needs.parse-tag.outputs.build_msvc_shared == 'true'
+    runs-on: windows-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Setup MSYS2
+        uses: msys2/setup-msys2@v2
+        with:
+          msystem: MINGW64
+          update: true
+          install: >-
+            git
+            base-devel
+            mingw-w64-x86_64-toolchain
+            mingw-w64-x86_64-nasm
+            make
+            diffutils
+            tar
+
+      - name: Build Windows MSVC Shared
+        shell: pwsh
+        run: |
+          $ErrorActionPreference = "Stop"
+          .\build-msvc.ps1 -Toolchain msvc -EnableShared 1
+
+      - name: Upload Artifacts
+        uses: actions/upload-artifact@v4
+        with:
+          name: ffmpeg-windows-msvc-shared
+          path: outputs/*.tar.gz
+
+  build-windows-mingw-static:
+    needs: parse-tag
+    if: needs.parse-tag.outputs.build_mingw_static == 'true'
+    runs-on: windows-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Setup MSYS2
+        uses: msys2/setup-msys2@v2
+        with:
+          msystem: MINGW64
+          update: true
+          install: >-
+            git
+            base-devel
+            mingw-w64-x86_64-toolchain
+            mingw-w64-x86_64-nasm
+            make
+            diffutils
+            tar
+
+      - name: Build Windows MinGW Static
         shell: msys2 {0}
         run: |
           set -e
           export ARCH=x86_64
-          export ENABLE_SHARED=${{ matrix.shared }}
+          export ENABLE_SHARED=0
           export TOOLCHAIN=mingw
           chmod +x build-windows.sh
           ./build-windows.sh
 
-      - name: Setup tmate session (Debug on failure)
-        if: failure()
-        uses: mxschmitt/action-tmate@v3
-
-      - name: Upload Windows Artifacts
+      - name: Upload Artifacts
         uses: actions/upload-artifact@v4
         with:
-          name: ffmpeg-windows-${{ matrix.name }}
+          name: ffmpeg-windows-mingw-static
+          path: outputs/*.tar.gz
+
+  build-windows-mingw-shared:
+    needs: parse-tag
+    if: needs.parse-tag.outputs.build_mingw_shared == 'true'
+    runs-on: windows-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Setup MSYS2
+        uses: msys2/setup-msys2@v2
+        with:
+          msystem: MINGW64
+          update: true
+          install: >-
+            git
+            base-devel
+            mingw-w64-x86_64-toolchain
+            mingw-w64-x86_64-nasm
+            make
+            diffutils
+            tar
+
+      - name: Build Windows MinGW Shared
+        shell: msys2 {0}
+        run: |
+          set -e
+          export ARCH=x86_64
+          export ENABLE_SHARED=1
+          export TOOLCHAIN=mingw
+          chmod +x build-windows.sh
+          ./build-windows.sh
+
+      - name: Upload Artifacts
+        uses: actions/upload-artifact@v4
+        with:
+          name: ffmpeg-windows-mingw-shared
           path: outputs/*.tar.gz
 
   release:
-    needs: [parse-tag, build-linux, build-windows]
-    if: always() && (needs.build-linux.result == 'success' || needs.build-windows.result == 'success')
+    needs: [parse-tag, build-linux, build-windows-msvc-static, build-windows-msvc-shared, build-windows-mingw-static, build-windows-mingw-shared]
+    if: always() && (needs.build-linux.result == 'success' || needs.build-windows-msvc-static.result == 'success' || needs.build-windows-msvc-shared.result == 'success' || needs.build-windows-mingw-static.result == 'success' || needs.build-windows-mingw-shared.result == 'success')
     runs-on: ubuntu-latest
     permissions:
       contents: write
