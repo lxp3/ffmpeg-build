@@ -38,17 +38,25 @@ ENABLE_SHARED=0 ./build-linux.sh
 ENABLE_SHARED=1 ./build-linux.sh
 ```
 
-### Windows (MSYS2/MINGW64)
+### Windows (MSVC)
 
-```bash
-# 静态库
-ENABLE_SHARED=0 ./build-windows.sh
+1. 安装 Visual Studio (推荐 2022) 并勾选 "使用 C++ 的桌面开发" 工作负载。
 
-# 动态库
-ENABLE_SHARED=1 ./build-windows.sh
+2. 安装 MSYS2 (用于提供构建环境，如 `make`, `bash`, `tar` 等)。
+
+3. 在 PowerShell 中运行：
+
+```powershell
+# 构建静态库 (默认)
+.\build-msvc.ps1 -EnableShared 0
+
+# 构建动态库
+.\build-msvc.ps1 -EnableShared 1
 ```
 
-### WebAssembly
+该脚本会自动查找 Visual Studio 环境，并启动 MSYS2 进行构建。输出的 `.lib` 和 `.dll` 文件将位于 `outputs/` 目录。
+
+### Windows (MinGW - MSYS2)
 
 ```bash
 # Linux/macOS

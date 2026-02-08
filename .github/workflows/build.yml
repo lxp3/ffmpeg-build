@@ -83,12 +83,10 @@ jobs:
     if: needs.parse-tag.outputs.build_windows == 'true'
     runs-on: windows-latest
     strategy:
-      fail-fast: true
+      fail-fast: false
       matrix:
         build_kind: [static, shared]
-    defaults:
-      run:
-        shell: msys2 {0}
+        toolchain: [msvc, mingw]
     steps:
       - uses: actions/checkout@v4
 
@@ -102,22 +100,30 @@ jobs:
             base-devel
             mingw-w64-x86_64-toolchain
             mingw-w64-x86_64-nasm
-            mingw-w64-x86_64-gcc
             make
             diffutils
             tar
 
-      - name: Build Windows
+      - name: Build Windows (MSVC)
+        if: matrix.toolchain == 'msvc'
+        shell: pwsh
+        run: |
+          .\build-msvc.ps1 -EnableShared ${{ matrix.build_kind == 'shared' && '1' || '0' }} -Toolchain msvc
+
+      - name: Build Windows (MinGW)
+        if: matrix.toolchain == 'mingw'
+        shell: msys2 {0}
         run: |
           export ARCH=x86_64
           export ENABLE_SHARED=${{ matrix.build_kind == 'shared' && '1' || '0' }}
+          export TOOLCHAIN=mingw
           chmod +x build-windows.sh
           ./build-windows.sh
 
       - name: Upload Artifacts
         uses: actions/upload-artifact@v4
         with:
-          name: ffmpeg-windows-${{ matrix.build_kind }}
+          name: ffmpeg-windows-${{ matrix.toolchain }}-${{ matrix.build_kind }}
           path: outputs/*.tar.gz
 
   release:

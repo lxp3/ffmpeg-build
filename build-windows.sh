@@ -24,6 +24,7 @@ fi
 # Args
 ARCH=${ARCH:-x86_64}
 ENABLE_SHARED=${ENABLE_SHARED:-0}
+TOOLCHAIN=${TOOLCHAIN:-mingw}
 
 # Read flags (remove Windows line endings, skip empty lines)
 FFMPEG_CONFIGURE_FLAGS=()
@@ -50,29 +51,43 @@ else
     )
 fi
 
-OUTPUT_DIR=outputs/ffmpeg-$FFMPEG_VERSION-$LIB_TYPE-$ARCH-w64-mingw32
+if [ "$TOOLCHAIN" = "msvc" ]; then
+    TOOLCHAIN_SUFFIX="msvc"
+    # MSVC flags: -wd4828 to disable illegal character warnings
+    EXTRA_CFLAGS="-O2 -MD -wd4828 -D_WIN32_WINNT=0x0601 -DWINVER=0x0601"
+    EXTRA_LDFLAGS=""
+    FFMPEG_CONFIGURE_FLAGS+=(
+        --toolchain=msvc
+        --target-os=win64
+    )
+else
+    TOOLCHAIN_SUFFIX="w64-mingw32"
+    # MinGW specific flags with O3 and SIMD optimizations
+    EXTRA_CFLAGS="-O3 -D_WIN32_WINNT=0x0601 -DWINVER=0x0601 -msse4.2 -mavx2 -ffunction-sections -fdata-sections"
+    EXTRA_LDFLAGS="-static -Wl,--gc-sections -Wl,--kill-at"
+    FFMPEG_CONFIGURE_FLAGS+=(
+        --target-os=mingw32
+    )
+fi
+
+OUTPUT_DIR=outputs/ffmpeg-$FFMPEG_VERSION-$LIB_TYPE-$ARCH-$TOOLCHAIN_SUFFIX
 mkdir -p "$OUTPUT_DIR"
 ABS_OUTPUT_DIR="$BASE_DIR/$OUTPUT_DIR"
 
 # Use explicit BUILD_DIR if provided, otherwise derive from ENABLE_SHARED
 if [ -z "${BUILD_DIR:-}" ]; then
-    BUILD_DIR="$BASE_DIR/build-${LIB_TYPE}-windows"
+    BUILD_DIR="$BASE_DIR/build-${LIB_TYPE}-${TOOLCHAIN_SUFFIX}"
 fi
 mkdir -p "$BUILD_DIR"
 
 cd "$BUILD_DIR"
 tar --strip-components=1 -xf "$BASE_DIR/$FFMPEG_TARBALL"
 
-# Windows specific flags with O3 and SIMD optimizations
-EXTRA_CFLAGS="-O3 -D_WIN32_WINNT=0x0601 -DWINVER=0x0601 -msse4.2 -mavx2 -ffunction-sections -fdata-sections"
-EXTRA_LDFLAGS="-static -Wl,--gc-sections -Wl,--kill-at"
-
-echo "Configuring FFmpeg for Windows ($ARCH)..."
+echo "Configuring FFmpeg for Windows ($ARCH, Toolchain=$TOOLCHAIN)..."
 ./configure \
     "${FFMPEG_CONFIGURE_FLAGS[@]}" \
     --prefix="$ABS_OUTPUT_DIR" \
     --arch="$ARCH" \
-    --target-os=mingw32 \
     --enable-runtime-cpudetect \
     --extra-libs='-lpsapi -lole32 -lstrmiids -luuid -lgdi32' \
     --extra-cflags="$EXTRA_CFLAGS" \
@@ -83,7 +98,7 @@ make -j$(nproc)
 make install
 
 echo "Post-processing..."
-if [ "$ENABLE_SHARED" -eq 1 ]; then
+if [ "$ENABLE_SHARED" -eq 1 ] && [ "$TOOLCHAIN" != "msvc" ]; then
     cd "$ABS_OUTPUT_DIR/bin"
     for dll in *.dll; do
         [ -e "$dll" ] || continue
