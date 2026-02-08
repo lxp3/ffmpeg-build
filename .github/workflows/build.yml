@@ -63,6 +63,22 @@ jobs:
     needs: parse-tag
     if: needs.parse-tag.outputs.build_windows == 'true'
     runs-on: windows-latest
+    strategy:
+      fail-fast: true
+      matrix:
+        include:
+          - toolchain: msvc
+            shared: 0
+            name: msvc-static
+          - toolchain: msvc
+            shared: 1
+            name: msvc-shared
+          - toolchain: mingw
+            shared: 0
+            name: mingw-static
+          - toolchain: mingw
+            shared: 1
+            name: mingw-shared
     steps:
       - uses: actions/checkout@v4
 
@@ -80,38 +96,16 @@ jobs:
             diffutils
             tar
 
-      - name: Build Windows (All Toolchains Parallel)
+      - name: Build Windows (${{ matrix.name }})
         shell: pwsh
         run: |
-          # Define build tasks
-          $tasks = @(
-            @{ Toolchain = "msvc";  Shared = 0 },
-            @{ Toolchain = "msvc";  Shared = 1 },
-            @{ Toolchain = "mingw"; Shared = 0 },
-            @{ Toolchain = "mingw"; Shared = 1 }
-          )
-
-          # Run builds in parallel using background jobs
-          $jobs = $tasks | ForEach-Object {
-            Start-Job -ScriptBlock {
-              param($t, $s)
-              cd $using:PWD
-              .\build-msvc.ps1 -Toolchain $t -EnableShared $s
-            } -ArgumentList $_.Toolchain, $_.Shared
-          }
-
-          # Wait for all jobs to complete and output their results
-          $jobs | Wait-Job | Receive-Job
-
-          # Check for failures
-          if ($jobs | Where-Object { $_.State -ne "Completed" -or $_.ExitCode -ne 0 }) {
-            throw "One or more Windows build jobs failed."
-          }
+          $ErrorActionPreference = "Stop"
+          .\build-msvc.ps1 -Toolchain ${{ matrix.toolchain }} -EnableShared ${{ matrix.shared }}
 
       - name: Upload Windows Artifacts
         uses: actions/upload-artifact@v4
         with:
-          name: ffmpeg-windows-all-artifacts
+          name: ffmpeg-windows-${{ matrix.name }}
           path: outputs/*.tar.gz
 
   release:
