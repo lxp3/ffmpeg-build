@@ -96,8 +96,8 @@ echo "Configuring FFmpeg for Windows ($ARCH, Toolchain=$TOOLCHAIN)..."
 # Fix awk syntax error in MSVC dependency generation
 if [ "$TOOLCHAIN" = "msvc" ]; then
     echo "Applying MSVC makefile patches..."
-    # Use a simpler character class [ \\ ] to handle backslashes in awk
-    sed -i 's|gsub(/\\/, "/")|gsub(/[\\\\]/, "/")|g' ffbuild/common.mak
+    # Replace gsub(/\/, "/") with gsub(/\\/, "/") to fix awk syntax error
+    sed -i 's|gsub(/\\/, "/")|gsub(/\\\\/, "/")|g' ffbuild/common.mak
 fi
 
 echo "Building..."
