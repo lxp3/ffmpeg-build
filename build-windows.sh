@@ -58,8 +58,8 @@ if [ "$TOOLCHAIN" = "msvc" ]; then
     export CXX="cl"
     export AR="lib"
     export NM="dumpbin -symbols"
+    export RANLIB="true"
     # MSVC flags: -wd4828 to disable illegal character warnings
-    # Using -MD for dynamic CRT (FFmpeg default for MSVC)
     EXTRA_CFLAGS="-O2 -MD -wd4828 -D_WIN32_WINNT=0x0601 -DWINVER=0x0601"
     EXTRA_LDFLAGS=""
     FFMPEG_CONFIGURE_FLAGS+=(
