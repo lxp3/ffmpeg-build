@@ -1,4 +1,3 @@
-# 基础配置
 --enable-pic
 --disable-doc
 --disable-debug
@@ -6,13 +5,11 @@
 --enable-swscale
 --enable-swresample
 
-# 禁用视频硬件加速
 --disable-hwaccels
 --disable-nvenc
 --disable-videotoolbox
 --disable-audiotoolbox
 
-# 网络协议（流式音频）
 --enable-network
 --disable-protocols
 --enable-protocol=file
@@ -24,11 +21,9 @@
 --enable-protocol=tcp
 --enable-protocol=udp
 
-# 设备输入（麦克风等）
 --enable-indevs
 --enable-outdevs
 
-# 禁用不需要的
 --disable-bsfs
 --disable-zlib
 --disable-bzlib
@@ -36,7 +31,6 @@
 --disable-iconv
 --disable-libxcb
 
-# ===== 解复用器（从容器提取音频流）=====
 --disable-demuxers
 --enable-demuxer=aac
 --enable-demuxer=ac3
@@ -83,7 +77,6 @@
 --enable-demuxer=pcm_u16le
 --enable-demuxer=pcm_u8
 
-# ===== 复用器（输出容器）=====
 --disable-muxers
 --enable-muxer=aac
 --enable-muxer=ac3
@@ -115,7 +108,6 @@
 --enable-muxer=pcm_u16le
 --enable-muxer=pcm_u8
 
-# ===== 音频解码器 =====
 --disable-decoders
 --enable-decoder=aac
 --enable-decoder=aac_latm
@@ -192,7 +184,6 @@
 --enable-decoder=adpcm_ima_wav
 --enable-decoder=adpcm_ms
 
-# ===== 音频编码器 =====
 --disable-encoders
 --enable-encoder=aac
 --enable-encoder=ac3
@@ -225,7 +216,6 @@
 --enable-encoder=adpcm_ima_wav
 --enable-encoder=adpcm_ms
 
-# ===== 解析器 =====
 --disable-parsers
 --enable-parser=aac
 --enable-parser=aac_latm
@@ -239,7 +229,6 @@
 --enable-parser=tak
 --enable-parser=vorbis
 
-# ===== 音频滤镜 =====
 --disable-filters
 --enable-filter=aformat
 --enable-filter=amix

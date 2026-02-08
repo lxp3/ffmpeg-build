@@ -25,13 +25,11 @@ fi
 ARCH=${ARCH:-x86_64}
 ENABLE_SHARED=${ENABLE_SHARED:-0}
 
-# Read flags (remove any Windows line endings and skip comments)
+# Read flags (remove Windows line endings, skip empty lines)
 FFMPEG_CONFIGURE_FLAGS=()
 while IFS= read -r line || [[ -n "$line" ]]; do
     line="${line%$'\r'}"
-    # Skip empty lines and comments
-    [[ -z "$line" || "$line" == \#* ]] && continue
-    FFMPEG_CONFIGURE_FLAGS+=("$line")
+    [[ -n "$line" ]] && FFMPEG_CONFIGURE_FLAGS+=("$line")
 done < ffmpeg_configure_flags.txt
 
 # Determine Lib Type and programs
