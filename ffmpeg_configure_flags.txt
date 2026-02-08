@@ -17,7 +17,6 @@
 --enable-protocol=http
 --enable-protocol=https
 --enable-protocol=rtmp
---enable-protocol=rtsp
 --enable-protocol=tcp
 --enable-protocol=udp
 
@@ -78,7 +77,6 @@
 --enable-demuxer=pcm_u8
 
 --disable-muxers
---enable-muxer=aac
 --enable-muxer=ac3
 --enable-muxer=adts
 --enable-muxer=aiff
