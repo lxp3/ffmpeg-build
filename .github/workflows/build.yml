@@ -122,26 +122,21 @@ jobs:
 
   release:
     needs: [parse-tag, build-linux, build-windows]
-    if: needs.build-linux.result == 'success' || needs.build-windows.result == 'success'
+    if: always() && (needs.build-linux.result == 'success' || needs.build-windows.result == 'success')
     runs-on: ubuntu-latest
     permissions:
       contents: write
     steps:
-      - name: Download Linux/WASM artifacts
-        if: needs.build-linux.result == 'success'
+      - name: Download all artifacts
         uses: actions/download-artifact@v4
         with:
           path: artifacts/
 
-      - name: Download Windows artifacts
-        if: needs.build-windows.result == 'success'
-        uses: actions/download-artifact@v4
-        with:
-          name: ffmpeg-windows
-          path: artifacts/
+      - name: List artifacts
+        run: find artifacts -type f -name "*.tar.gz"
 
       - name: Create Release
         uses: softprops/action-gh-release@v2
         with:
-          files: artifacts/*.tar.gz
+          files: artifacts/**/*.tar.gz
           generate_release_notes: true
