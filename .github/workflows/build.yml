@@ -82,6 +82,10 @@ jobs:
     needs: parse-tag
     if: needs.parse-tag.outputs.build_windows == 'true'
     runs-on: windows-latest
+    strategy:
+      fail-fast: true
+      matrix:
+        build_kind: [static, shared]
     defaults:
       run:
         shell: msys2 {0}
@@ -103,24 +107,17 @@ jobs:
             diffutils
             tar
 
-      - name: Build Windows (Static)
+      - name: Build Windows
         run: |
           export ARCH=x86_64
-          export ENABLE_SHARED=0
-          chmod +x build-windows.sh
-          ./build-windows.sh
-
-      - name: Build Windows (Shared)
-        run: |
-          export ARCH=x86_64
-          export ENABLE_SHARED=1
+          export ENABLE_SHARED=${{ matrix.build_kind == 'shared' && '1' || '0' }}
           chmod +x build-windows.sh
           ./build-windows.sh
 
       - name: Upload Artifacts
         uses: actions/upload-artifact@v4
         with:
-          name: ffmpeg-windows
+          name: ffmpeg-windows-${{ matrix.build_kind }}
           path: outputs/*.tar.gz
 
   release:
