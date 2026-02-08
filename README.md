@@ -18,13 +18,15 @@ FFmpeg 音频编解码库的跨平台构建工具。
 
 ## 发布包
 
-| 包名 | 平台 | 类型 |
-|------|------|------|
-| `ffmpeg-7.1-static-x86_64-linux-gnu.tar.gz` | Linux | 静态库 |
-| `ffmpeg-7.1-shared-x86_64-linux-gnu.tar.gz` | Linux | 动态库 |
-| `ffmpeg-7.1-wasm.tar.gz` | WebAssembly | 静态库 |
-| `ffmpeg-7.1-static-x86_64-w64-mingw32.tar.gz` | Windows | 静态库 |
-| `ffmpeg-7.1-shared-x86_64-w64-mingw32.tar.gz` | Windows | 动态库 |
+| 平台 | 类型 | 编译器 | 包名 |
+|------|------|--------|------|
+| Linux | 静态库 | GCC | `ffmpeg-7.1-static-x86_64-linux-gnu.tar.gz` |
+| Linux | 动态库 | GCC | `ffmpeg-7.1-shared-x86_64-linux-gnu.tar.gz` |
+| Windows | 静态库 | MSVC | `ffmpeg-7.1-static-x86_64-msvc.tar.gz` |
+| Windows | 动态库 | MSVC | `ffmpeg-7.1-shared-x86_64-msvc.tar.gz` |
+| Windows | 静态库 | MinGW | `ffmpeg-7.1-static-x86_64-w64-mingw32.tar.gz` |
+| Windows | 动态库 | MinGW | `ffmpeg-7.1-shared-x86_64-w64-mingw32.tar.gz` |
+| WebAssembly | 静态库 | Emscripten | `ffmpeg-7.1-wasm.tar.gz` |
 
 ## 构建命令
 
