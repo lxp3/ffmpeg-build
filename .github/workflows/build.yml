@@ -66,18 +66,9 @@ jobs:
                      chmod +x build-linux.sh && \
                      ./build-linux.sh"
 
-      - name: Setup Emscripten
-        if: matrix.build_kind == 'wasm'
-        run: |
-          git clone https://github.com/emscripten-core/emsdk.git
-          cd emsdk
-          ./emsdk install 3.1.51
-          ./emsdk activate 3.1.51
-
       - name: Build WASM
         if: matrix.build_kind == 'wasm'
         run: |
-          source ./emsdk/emsdk_env.sh
           chmod +x build-wasm.sh
           ./build-wasm.sh
 
