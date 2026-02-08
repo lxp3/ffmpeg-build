@@ -66,10 +66,12 @@ $MsysScriptDir = "/$Drive/$PathPart"
 $BuildScript = "cd '$MsysScriptDir' && export TOOLCHAIN=$Toolchain && export ARCH=$Arch && export ENABLE_SHARED=$EnableShared && ./build-windows.sh"
 
 # Execute using msys2_shell.cmd
-# -use-full-path is only needed for MSVC to inherit environment variables
+# For MSVC, we use -msys to avoid MinGW tools (like ar, ld) polluting the PATH.
+# -use-full-path inherits the MSVC environment variables we set above.
+$MsysMode = if ($Toolchain -eq "msvc") { "-msys" } else { "-mingw64" }
 $UseFullPath = if ($Toolchain -eq "msvc") { "-use-full-path" } else { "" }
 
-& $MsysShell -mingw64 $UseFullPath -defterm -no-start -here -c $BuildScript
+& $MsysShell $MsysMode $UseFullPath -defterm -no-start -here -c $BuildScript
 
 if ($LASTEXITCODE -ne 0) {
     Write-Error "Build failed with exit code $LASTEXITCODE"
