@@ -12,26 +12,17 @@ Set-Location $ScriptDir
 
 Write-Host "Starting FFmpeg Build for Windows ($Arch, Shared=$EnableShared)..."
 
-# Find MSYS2 Bash
-$Bash = Get-Command "bash" -ErrorAction SilentlyContinue
-if ($null -eq $Bash) {
-    # Common MSYS2 locations
-    $PossiblePaths = @(
-        "C:\msys64\usr\bin\bash.exe",
-        "C:\Program Files\Git\bin\bash.exe"
-    )
-    foreach ($Path in $PossiblePaths) {
-        if (Test-Path $Path) {
-            $Bash = $Path
-            break
-        }
+# Use MSYS2 MinGW64 shell directly
+$Mingw64Bash = "C:\msys64\mingw64.exe"
+if (-not (Test-Path $Mingw64Bash)) {
+    # Fallback to msys2_shell with MINGW64
+    $Mingw64Bash = "C:\msys64\msys2_shell.cmd"
+    if (-not (Test-Path $Mingw64Bash)) {
+        Write-Error "MSYS2 MinGW64 not found. Please ensure MSYS2 is installed at C:\msys64"
+        exit 1
     }
 }
-
-if ($null -eq $Bash) {
-    Write-Error "bash not found. Please ensure MSYS2 or Git Bash is installed and in PATH."
-}
-Write-Host "Using bash: $Bash"
+Write-Host "Using MSYS2 MinGW64"
 
 # Convert ScriptDir to MSYS path for passing to bash
 # e.g. C:\Users -> /c/Users
@@ -40,11 +31,10 @@ $PathPart = $ScriptDir.Substring(3).Replace('\', '/')
 $MsysScriptDir = "/$Drive/$PathPart"
 
 # Build command to run build-windows.sh
-# We export environment variables ARCH and ENABLE_SHARED for the script to pick up
-$Command = "cd ""$MsysScriptDir"" && export ARCH=$Arch && export ENABLE_SHARED=$EnableShared && ./build-windows.sh"
+$BuildScript = "cd '$MsysScriptDir' && export ARCH=$Arch && export ENABLE_SHARED=$EnableShared && ./build-windows.sh"
 
-# Execute
-& $Bash -c $Command
+# Execute using msys2_shell.cmd with MINGW64 environment
+& C:\msys64\msys2_shell.cmd -mingw64 -defterm -no-start -here -c $BuildScript
 
 if ($LASTEXITCODE -ne 0) {
     Write-Error "Build failed with exit code $LASTEXITCODE"

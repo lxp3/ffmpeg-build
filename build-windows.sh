@@ -5,6 +5,12 @@ set -eu
 cd "$(dirname "$0")"
 BASE_DIR=$(pwd)
 
+# Fix for non-ASCII username in temp path
+export TMPDIR="$BASE_DIR/tmp"
+export TEMP="$TMPDIR"
+export TMP="$TMPDIR"
+mkdir -p "$TMPDIR"
+
 FFMPEG_VERSION=7.1
 FFMPEG_TARBALL=ffmpeg-$FFMPEG_VERSION.tar.gz
 FFMPEG_TARBALL_URL=http://ffmpeg.org/releases/$FFMPEG_TARBALL
@@ -19,11 +25,13 @@ fi
 ARCH=${ARCH:-x86_64}
 ENABLE_SHARED=${ENABLE_SHARED:-0}
 
-# Read flags (remove any Windows line endings)
+# Read flags (remove any Windows line endings and skip comments)
 FFMPEG_CONFIGURE_FLAGS=()
 while IFS= read -r line || [[ -n "$line" ]]; do
     line="${line%$'\r'}"
-    [[ -n "$line" ]] && FFMPEG_CONFIGURE_FLAGS+=("$line")
+    # Skip empty lines and comments
+    [[ -z "$line" || "$line" == \#* ]] && continue
+    FFMPEG_CONFIGURE_FLAGS+=("$line")
 done < ffmpeg_configure_flags.txt
 
 # Determine Lib Type and programs

@@ -23,8 +23,8 @@ while IFS= read -r line || [[ -n "$line" ]]; do
     [[ -n "$line" ]] && FFMPEG_CONFIGURE_FLAGS+=("$line")
 done < ffmpeg_configure_flags.txt
 
-# Default settings
-ARCH=${ARCH:-x86_64}
+# Default settings (x86_64 only)
+ARCH=x86_64
 ENABLE_SHARED=${ENABLE_SHARED:-0}
 
 if [ "$ENABLE_SHARED" -eq 1 ]; then
@@ -57,57 +57,11 @@ else
     )
 fi
 
-case $ARCH in
-    x86_64)
-        FFMPEG_CONFIGURE_FLAGS+=(
-            --extra-cflags="-O3 -fPIC -msse4.2 -mavx2 -ffunction-sections -fdata-sections"
-            --extra-ldflags="-Wl,--gc-sections"
-        )
-        ;;
-    i686)
-        FFMPEG_CONFIGURE_FLAGS+=(--cc="gcc -m32")
-        ;;
-    arm64)
-        FFMPEG_CONFIGURE_FLAGS+=(
-            --enable-cross-compile
-            --cross-prefix=aarch64-linux-gnu-
-            --target-os=linux
-            --arch=aarch64
-        )
-        ;;
-    arm*)
-        FFMPEG_CONFIGURE_FLAGS+=(
-            --enable-cross-compile
-            --cross-prefix=arm-linux-gnueabihf-
-            --target-os=linux
-            --arch=arm
-        )
-        case $ARCH in
-            armv7-a)
-                FFMPEG_CONFIGURE_FLAGS+=(--cpu=armv7-a)
-                ;;
-            armv8-a)
-                FFMPEG_CONFIGURE_FLAGS+=(--cpu=armv8-a)
-                ;;
-            armhf-rpi2)
-                FFMPEG_CONFIGURE_FLAGS+=(
-                    --cpu=cortex-a7
-                    --extra-cflags='-fPIC -mcpu=cortex-a7 -mfloat-abi=hard -mfpu=neon-vfpv4 -mvectorize-with-neon-quad'
-                )
-                ;;
-            armhf-rpi3)
-                FFMPEG_CONFIGURE_FLAGS+=(
-                    --cpu=cortex-a53
-                    --extra-cflags='-fPIC -mcpu=cortex-a53 -mfloat-abi=hard -mfpu=neon-fp-armv8 -mvectorize-with-neon-quad'
-                )
-                ;;
-        esac
-        ;;
-    *)
-        echo "Unknown architecture: $ARCH"
-        exit 1
-        ;;
-esac
+# x86_64 optimizations
+FFMPEG_CONFIGURE_FLAGS+=(
+    --extra-cflags="-O3 -fPIC -msse4.2 -mavx2 -ffunction-sections -fdata-sections"
+    --extra-ldflags="-Wl,--gc-sections"
+)
 
 cd "$BUILD_DIR"
 tar --strip-components=1 -xf "$BASE_DIR/$FFMPEG_TARBALL"
