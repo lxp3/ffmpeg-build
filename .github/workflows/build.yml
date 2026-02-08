@@ -33,60 +33,36 @@ jobs:
     needs: parse-tag
     if: needs.parse-tag.outputs.build_linux == 'true'
     runs-on: ubuntu-latest
-    strategy:
-      fail-fast: true
-      matrix:
-        build_kind: [static, shared, wasm]
     steps:
       - uses: actions/checkout@v4
 
-      - name: Build Linux (Static)
-        if: matrix.build_kind == 'static'
+      - name: Build Linux (Static & Shared Parallel)
         run: |
           docker run --rm \
             -v ${{ github.workspace }}:/workspace \
             -w /workspace \
-            -e ARCH=x86_64 \
-            -e ENABLE_SHARED=0 \
             quay.io/pypa/manylinux2014_x86_64 \
             bash -c "yum install -y nasm patchelf && \
                      chmod +x build-linux.sh && \
-                     ./build-linux.sh"
-
-      - name: Build Linux (Shared)
-        if: matrix.build_kind == 'shared'
-        run: |
-          docker run --rm \
-            -v ${{ github.workspace }}:/workspace \
-            -w /workspace \
-            -e ARCH=x86_64 \
-            -e ENABLE_SHARED=1 \
-            quay.io/pypa/manylinux2014_x86_64 \
-            bash -c "yum install -y nasm patchelf && \
-                     chmod +x build-linux.sh && \
-                     ./build-linux.sh"
+                     (ENABLE_SHARED=0 ./build-linux.sh & \
+                      ENABLE_SHARED=1 ./build-linux.sh & \
+                      wait)"
 
       - name: Build WASM
-        if: matrix.build_kind == 'wasm'
         run: |
           chmod +x build-wasm.sh
           ./build-wasm.sh
 
-      - name: Upload Artifacts
+      - name: Upload Linux Artifacts
         uses: actions/upload-artifact@v4
         with:
-          name: ffmpeg-linux-${{ matrix.build_kind }}
+          name: ffmpeg-linux-artifacts
           path: outputs/*.tar.gz
 
   build-windows:
     needs: parse-tag
     if: needs.parse-tag.outputs.build_windows == 'true'
     runs-on: windows-latest
-    strategy:
-      fail-fast: false
-      matrix:
-        build_kind: [static, shared]
-        toolchain: [msvc, mingw]
     steps:
       - uses: actions/checkout@v4
 
@@ -104,26 +80,38 @@ jobs:
             diffutils
             tar
 
-      - name: Build Windows (MSVC)
-        if: matrix.toolchain == 'msvc'
+      - name: Build Windows (All Toolchains Parallel)
         shell: pwsh
         run: |
-          .\build-msvc.ps1 -EnableShared ${{ matrix.build_kind == 'shared' && '1' || '0' }} -Toolchain msvc
+          # Define build tasks
+          $tasks = @(
+            @{ Toolchain = "msvc";  Shared = 0 },
+            @{ Toolchain = "msvc";  Shared = 1 },
+            @{ Toolchain = "mingw"; Shared = 0 },
+            @{ Toolchain = "mingw"; Shared = 1 }
+          )
 
-      - name: Build Windows (MinGW)
-        if: matrix.toolchain == 'mingw'
-        shell: msys2 {0}
-        run: |
-          export ARCH=x86_64
-          export ENABLE_SHARED=${{ matrix.build_kind == 'shared' && '1' || '0' }}
-          export TOOLCHAIN=mingw
-          chmod +x build-windows.sh
-          ./build-windows.sh
+          # Run builds in parallel using background jobs
+          $jobs = $tasks | ForEach-Object {
+            Start-Job -ScriptBlock {
+              param($t, $s)
+              cd $using:PWD
+              .\build-msvc.ps1 -Toolchain $t -EnableShared $s
+            } -ArgumentList $_.Toolchain, $_.Shared
+          }
 
-      - name: Upload Artifacts
+          # Wait for all jobs to complete and output their results
+          $jobs | Wait-Job | Receive-Job
+
+          # Check for failures
+          if ($jobs | Where-Object { $_.State -ne "Completed" -or $_.ExitCode -ne 0 }) {
+            throw "One or more Windows build jobs failed."
+          }
+
+      - name: Upload Windows Artifacts
         uses: actions/upload-artifact@v4
         with:
-          name: ffmpeg-windows-${{ matrix.toolchain }}-${{ matrix.build_kind }}
+          name: ffmpeg-windows-all-artifacts
           path: outputs/*.tar.gz
 
   release:
