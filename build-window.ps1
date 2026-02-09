@@ -57,11 +57,10 @@ if ($Toolchain -eq "msvc") {
 Write-Host "Starting FFmpeg Build for Windows ($Toolchain, $Arch, Shared=$EnableShared)..."
 
 # MSYS2 path
-# $MsysRoot = "C:\msys64"
-$MsysRoot = "E:\Repos\third_party\msys64"
+$MsysRoot = "C:\msys64"
 $MsysShell = Join-Path $MsysRoot "msys2_shell.cmd"
 
-# --- 关键修复：移�?MSYS2 自带�?link.exe 避免�?MSVC 冲突 ---
+# Remove MSYS2 link.exe to avoid conflict with MSVC linker
 $MsysLink = Join-Path $MsysRoot "usr\bin\link.exe"
 if (Test-Path $MsysLink) {
     Write-Host "Removing MSYS2 link.exe to avoid conflict with MSVC linker..."

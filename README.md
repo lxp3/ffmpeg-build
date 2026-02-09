@@ -78,21 +78,6 @@ ENABLE_SHARED=1 ./build-window.sh
 
 WASM 构建脚本会自动安装 Emscripten SDK。
 
-## 触发构建
-
-推送 tag 触发 GitHub Actions：
-
-```bash
-# 构建所有平台
-git tag v0.1.0 && git push origin v0.1.0
-
-# 仅构建 Linux + WASM
-git tag v0.1.0-linux && git push origin v0.1.0-linux
-
-# 仅构建 Windows
-git tag v0.1.0-window && git push origin v0.1.0-window
-```
-
 ## 依赖
 
 ### Linux
