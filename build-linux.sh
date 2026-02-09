@@ -41,21 +41,23 @@ if [ -z "${BUILD_DIR:-}" ]; then
 fi
 mkdir -p "$BUILD_DIR"
 
-# Programs control: static = no exe, shared = with exe
+# Programs: always enable ffmpeg, disable ffprobe
 if [ "$LIB_TYPE" = "shared" ]; then
     FFMPEG_CONFIGURE_FLAGS+=(
         --enable-shared
         --disable-static
-        --enable-ffmpeg
-        --enable-ffprobe
     )
 else
     FFMPEG_CONFIGURE_FLAGS+=(
         --enable-static
         --disable-shared
-        --disable-programs
     )
 fi
+
+FFMPEG_CONFIGURE_FLAGS+=(
+    --enable-ffmpeg
+    --disable-ffprobe
+)
 
 # x86_64 optimizations
 FFMPEG_CONFIGURE_FLAGS+=(
@@ -127,3 +129,4 @@ if [ "$(id -u)" -eq 0 ]; then
 fi
 
 echo "Linux build complete. Output: $OUTPUT_DIR"
+

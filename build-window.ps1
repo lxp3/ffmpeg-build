@@ -11,6 +11,12 @@ $ErrorActionPreference = "Stop"
 $ScriptDir = $PSScriptRoot
 Set-Location $ScriptDir
 
+if ($Toolchain -eq "msvc" -and $EnableShared -ne 0) {
+    Write-Error "Toolchain=msvc does not support shared builds. Please set EnableShared=0."
+    exit 1
+}
+
+
 if ($Toolchain -eq "msvc") {
     Write-Host "Searching for Visual Studio..."
     $vswhere = "${env:ProgramFiles(x86)}\Microsoft Visual Studio\Installer\vswhere.exe"
@@ -51,10 +57,11 @@ if ($Toolchain -eq "msvc") {
 Write-Host "Starting FFmpeg Build for Windows ($Toolchain, $Arch, Shared=$EnableShared)..."
 
 # MSYS2 path
-$MsysRoot = "C:\msys64"
+# $MsysRoot = "C:\msys64"
+$MsysRoot = "E:\Repos\third_party\msys64"
 $MsysShell = Join-Path $MsysRoot "msys2_shell.cmd"
 
-# --- 关键修复：移除 MSYS2 自带的 link.exe 避免与 MSVC 冲突 ---
+# --- 关键修复：移�?MSYS2 自带�?link.exe 避免�?MSVC 冲突 ---
 $MsysLink = Join-Path $MsysRoot "usr\bin\link.exe"
 if (Test-Path $MsysLink) {
     Write-Host "Removing MSYS2 link.exe to avoid conflict with MSVC linker..."
@@ -73,7 +80,7 @@ $MsysScriptDir = "/$Drive/$PathPart"
 
 # Build command
 # Append /mingw64/bin to PATH to find nasm, but keep it at the end to prefer MSVC tools
-$BuildScript = "export PATH=`$PATH:/mingw64/bin && cd '$MsysScriptDir' && export TOOLCHAIN=$Toolchain && export ARCH=$Arch && export ENABLE_SHARED=$EnableShared && ./build-windows.sh"
+$BuildScript = "export PATH=`$PATH:/mingw64/bin && cd '$MsysScriptDir' && export TOOLCHAIN=$Toolchain && export ARCH=$Arch && export ENABLE_SHARED=$EnableShared && ./build-window.sh"
 
 # Execute using msys2_shell.cmd
 # For MSVC, we use -msys to avoid MinGW tools (like ar, ld) polluting the PATH.
@@ -88,3 +95,4 @@ if ($LASTEXITCODE -ne 0) {
 }
 
 Write-Host "Build finished successfully."
+

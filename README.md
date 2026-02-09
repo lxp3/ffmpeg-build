@@ -1,6 +1,6 @@
 # FFmpeg Build
 
-FFmpeg 音频编解码库的跨平台构建工具。
+FFmpeg 音频编解码库的跨平台构建工具集
 
 ## 功能特性
 
@@ -8,13 +8,13 @@ FFmpeg 音频编解码库的跨平台构建工具。
 
 | 功能 | 支持 |
 |------|------|
-| 从视频提取音频 | ✅ (MP4/MKV/AVI/FLV等) |
-| 麦克风录音 (dshow) | ✅ |
-| 流式音频 (HTTP/RTMP/RTSP) | ✅ |
-| 音频格式转换 | ✅ |
-| AAC/MP3/FLAC/WAV/OGG/Opus | ✅ 编解码 |
-| PCM 各种格式 | ✅ 编解码 |
-| 视频编码 | ❌ 不支持 |
+| 从视频提取音频 | 支持 (MP4/MKV/AVI/FLV 等) |
+| 麦克风录制 (dshow) | 支持 |
+| 流式音频 (HTTP/RTMP/RTSP) | 支持 |
+| 音频格式转换 | 支持 |
+| AAC/MP3/FLAC/WAV/OGG/Opus | 支持编解码 |
+| PCM 各种格式 | 支持编解码 |
+| 视频编码 | 不支持 |
 
 ## 发布包
 
@@ -23,7 +23,6 @@ FFmpeg 音频编解码库的跨平台构建工具。
 | Linux | 静态库 | GCC | `ffmpeg-7.1-static-x86_64-linux-gnu.tar.gz` |
 | Linux | 动态库 | GCC | `ffmpeg-7.1-shared-x86_64-linux-gnu.tar.gz` |
 | Windows | 静态库 | MSVC | `ffmpeg-7.1-static-x86_64-msvc.tar.gz` |
-| Windows | 动态库 | MSVC | `ffmpeg-7.1-shared-x86_64-msvc.tar.gz` |
 | Windows | 静态库 | MinGW | `ffmpeg-7.1-static-x86_64-w64-mingw32.tar.gz` |
 | Windows | 动态库 | MinGW | `ffmpeg-7.1-shared-x86_64-w64-mingw32.tar.gz` |
 | WebAssembly | 静态库 | Emscripten | `ffmpeg-7.1-wasm.tar.gz` |
@@ -49,16 +48,25 @@ ENABLE_SHARED=1 ./build-linux.sh
 3. 在 PowerShell 中运行：
 
 ```powershell
-# 构建静态库 (默认)
-.\build-msvc.ps1 -EnableShared 0
-
-# 构建动态库
-.\build-msvc.ps1 -EnableShared 1
+# 仅支持构建静态库
+.\build-window.ps1 -EnableShared 0
 ```
 
-该脚本会自动查找 Visual Studio 环境，并启动 MSYS2 进行构建。输出的 `.lib` 和 `.dll` 文件将位于 `outputs/` 目录。
+该脚本会自动查找 Visual Studio 环境，并启动 MSYS2 进行构建。输出的 `.lib` 文件将位于 `outputs/` 目录。
 
 ### Windows (MinGW - MSYS2)
+
+在 MSYS2 MINGW64 终端运行：
+
+```bash
+# 静态库
+ENABLE_SHARED=0 ./build-window.sh
+
+# 动态库
+ENABLE_SHARED=1 ./build-window.sh
+```
+
+### WebAssembly
 
 ```bash
 # Linux/macOS
@@ -117,23 +125,6 @@ pacman -S \
   diffutils \
   tar
 ```
-
-4. 在 MINGW64 终端中运行构建脚本：
-
-```bash
-cd /d/path/to/ffmpeg-build
-ENABLE_SHARED=0 ./build-windows.sh
-```
-
-或使用 PowerShell 脚本：
-
-```powershell
-.\build-msvc.ps1 -Arch x86_64 -EnableShared 0
-```
-
-### WebAssembly
-- 自动安装 Emscripten SDK 5.0.0
-- 需要 git, curl, bash
 
 ## 配置
 

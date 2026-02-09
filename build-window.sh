@@ -33,23 +33,26 @@ while IFS= read -r line || [[ -n "$line" ]]; do
     [[ -n "$line" ]] && FFMPEG_CONFIGURE_FLAGS+=("$line")
 done < ffmpeg_configure_flags.txt
 
-# Determine Lib Type and programs
+# Determine Lib Type
 if [ "$ENABLE_SHARED" -eq 1 ]; then
     LIB_TYPE=shared
     FFMPEG_CONFIGURE_FLAGS+=(
         --enable-shared
         --disable-static
-        --enable-ffmpeg
-        --enable-ffprobe
     )
 else
     LIB_TYPE=static
     FFMPEG_CONFIGURE_FLAGS+=(
         --enable-static
         --disable-shared
-        --disable-programs
     )
 fi
+
+# Programs: always enable ffmpeg, disable ffprobe
+FFMPEG_CONFIGURE_FLAGS+=(
+    --enable-ffmpeg
+    --disable-ffprobe
+)
 
 if [ "$TOOLCHAIN" = "msvc" ]; then
     TOOLCHAIN_SUFFIX="msvc"
@@ -98,7 +101,8 @@ echo "Configuring FFmpeg for Windows ($ARCH, Toolchain=$TOOLCHAIN)..."
     --extra-libs='-lpsapi -lole32 -lstrmiids -luuid -lgdi32' \
     --extra-cflags="$EXTRA_CFLAGS" \
     --extra-ldflags="$EXTRA_LDFLAGS"
-
+    
+sed -i 's/#define CC_IDENT.*/#define CC_IDENT "MSVC"/' config.h
 echo "Building..."
 make -j$(nproc)
 make install
@@ -125,3 +129,4 @@ echo "Packaging to $TAR_NAME ..."
 tar czf "$TAR_NAME" -C outputs "$(basename "$OUTPUT_DIR")"
 
 echo "Windows build complete. Output: $OUTPUT_DIR"
+
