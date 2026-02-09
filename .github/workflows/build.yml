@@ -11,6 +11,7 @@ jobs:
     runs-on: ubuntu-latest
     outputs:
       build_linux: ${{ steps.parse.outputs.build_linux }}
+      build_wasm: ${{ steps.parse.outputs.build_wasm }}
       build_windows: ${{ steps.parse.outputs.build_windows }}
       build_msvc_static: ${{ steps.parse.outputs.build_msvc_static }}
       build_mingw_static: ${{ steps.parse.outputs.build_mingw_static }}
@@ -24,6 +25,7 @@ jobs:
 
           # Default: all disabled
           BUILD_LINUX=false
+          BUILD_WASM=false
           BUILD_WINDOWS=false
           BUILD_MSVC_STATIC=false
           BUILD_MINGW_STATIC=false
@@ -46,8 +48,12 @@ jobs:
             BUILD_MINGW_SHARED=true
           elif [[ "$TAG" == *-linux ]]; then
             BUILD_LINUX=true
+            BUILD_WASM=true
+          elif [[ "$TAG" == *-wasm ]]; then
+            BUILD_WASM=true
           else
             BUILD_LINUX=true
+            BUILD_WASM=true
             BUILD_WINDOWS=true
             BUILD_MSVC_STATIC=true
             BUILD_MINGW_STATIC=true
@@ -55,6 +61,7 @@ jobs:
           fi
 
           echo "build_linux=$BUILD_LINUX" >> $GITHUB_OUTPUT
+          echo "build_wasm=$BUILD_WASM" >> $GITHUB_OUTPUT
           echo "build_windows=$BUILD_WINDOWS" >> $GITHUB_OUTPUT
           echo "build_msvc_static=$BUILD_MSVC_STATIC" >> $GITHUB_OUTPUT
           echo "build_mingw_static=$BUILD_MINGW_STATIC" >> $GITHUB_OUTPUT
@@ -79,15 +86,28 @@ jobs:
                       ENABLE_SHARED=1 ./build-linux.sh & \
                       wait)"
 
+      - name: Upload Linux Artifacts
+        uses: actions/upload-artifact@v4
+        with:
+          name: ffmpeg-linux-artifacts
+          path: outputs/*.tar.gz
+
+  build-wasm:
+    needs: parse-tag
+    if: needs.parse-tag.outputs.build_wasm == 'true'
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
       - name: Build WASM
         run: |
           chmod +x build-wasm.sh
           ./build-wasm.sh
 
-      - name: Upload Linux Artifacts
+      - name: Upload WASM Artifacts
         uses: actions/upload-artifact@v4
         with:
-          name: ffmpeg-linux-artifacts
+          name: ffmpeg-wasm-artifacts
           path: outputs/*.tar.gz
 
   build-windows-msvc-static:
@@ -189,8 +209,8 @@ jobs:
           path: outputs/*.tar.gz
 
   release:
-    needs: [parse-tag, build-linux, build-windows-msvc-static, build-windows-mingw-static, build-windows-mingw-shared]
-    if: always() && (needs.build-linux.result == 'success' || needs.build-windows-msvc-static.result == 'success' || needs.build-windows-mingw-static.result == 'success' || needs.build-windows-mingw-shared.result == 'success')
+    needs: [parse-tag, build-linux, build-wasm, build-windows-msvc-static, build-windows-mingw-static, build-windows-mingw-shared]
+    if: always() && (needs.build-linux.result == 'success' || needs.build-wasm.result == 'success' || needs.build-windows-msvc-static.result == 'success' || needs.build-windows-mingw-static.result == 'success' || needs.build-windows-mingw-shared.result == 'success')
     runs-on: ubuntu-latest
     permissions:
       contents: write
