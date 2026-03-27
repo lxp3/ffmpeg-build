@@ -56,6 +56,20 @@ while IFS= read -r line || [[ -n "$line" ]]; do
     [[ -n "$line" ]] && FFMPEG_CONFIGURE_FLAGS+=("$line")
 done < ffmpeg_configure_flags.txt
 
+# WASM builds do not bundle native external codec/system libraries by default.
+# Filter out flags that require separately cross-compiled third-party deps.
+WASM_FILTERED_CONFIGURE_FLAGS=()
+for flag in "${FFMPEG_CONFIGURE_FLAGS[@]}"; do
+    case "$flag" in
+        --enable-libmp3lame|--enable-libopus|--enable-libvorbis|--enable-libspeex|--enable-openssl|\
+        --enable-encoder=libmp3lame|--enable-encoder=libopus|--enable-encoder=libvorbis|--enable-encoder=libspeex)
+            ;;
+        *)
+            WASM_FILTERED_CONFIGURE_FLAGS+=("$flag")
+            ;;
+    esac
+done
+
 # Ensure configure uses clang-style toolchain args for Emscripten
 export CC=emcc
 export CXX=em++
@@ -108,7 +122,7 @@ WASM_CONFIGURE_FLAGS=(
 )
 
 echo "Configuring FFmpeg for WASM..."
-./configure "${WASM_CONFIGURE_FLAGS[@]}" "${FFMPEG_CONFIGURE_FLAGS[@]}" || exit 1
+./configure "${WASM_CONFIGURE_FLAGS[@]}" "${WASM_FILTERED_CONFIGURE_FLAGS[@]}" || exit 1
 
 echo "Building WASM..."
 make -j$(nproc)
