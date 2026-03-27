@@ -99,11 +99,24 @@ jobs:
             -v ${{ github.workspace }}:/workspace \
             -w /workspace \
             quay.io/pypa/manylinux2014_x86_64 \
-            bash -c "yum install -y nasm patchelf lame-devel opus-devel libvorbis-devel speex-devel openssl-devel && \
-                     chmod +x build-linux.sh && \
-                     (ENABLE_SHARED=0 ./build-linux.sh & \
-                      ENABLE_SHARED=1 ./build-linux.sh & \
-                      wait)"
+            bash -lc '
+              set -euo pipefail
+              yum install -y nasm patchelf lame-devel opus-devel libvorbis-devel speex-devel openssl-devel
+              chmod +x build-linux.sh
+
+              ENABLE_SHARED=0 ./build-linux.sh &
+              pid_static=$!
+              ENABLE_SHARED=1 ./build-linux.sh &
+              pid_shared=$!
+
+              wait "$pid_static"
+              wait "$pid_shared"
+            '
+
+      - name: Verify Linux Artifacts
+        run: |
+          ls -lah outputs
+          test -n "$(find outputs -maxdepth 1 -type f -name '*.tar.gz' -print -quit)"
 
       - name: Upload Linux Artifacts
         uses: actions/upload-artifact@v4
