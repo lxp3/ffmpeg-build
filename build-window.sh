@@ -85,11 +85,12 @@ else
     TOOLCHAIN_SUFFIX="w64-mingw32"
     # MinGW specific flags with O3 and SIMD optimizations
     EXTRA_CFLAGS="-O3 -D_WIN32_WINNT=0x0601 -DWINVER=0x0601 -msse4.2 -mavx2 -ffunction-sections -fdata-sections"
-    EXTRA_LDFLAGS="-static -Wl,--gc-sections -Wl,--kill-at"
+    EXTRA_LDFLAGS="-Wl,--gc-sections -Wl,--kill-at"
     FFMPEG_CONFIGURE_FLAGS+=(
         --target-os=mingw32
     )
     if [ "$ENABLE_SHARED" -eq 0 ]; then
+        EXTRA_LDFLAGS="-static $EXTRA_LDFLAGS"
         FFMPEG_CONFIGURE_FLAGS+=(
             --pkg-config-flags=--static
         )
