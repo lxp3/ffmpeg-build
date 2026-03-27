@@ -56,6 +56,18 @@ FFMPEG_CONFIGURE_FLAGS+=(
 
 if [ "$TOOLCHAIN" = "msvc" ]; then
     TOOLCHAIN_SUFFIX="msvc"
+    FILTERED_CONFIGURE_FLAGS=()
+    for flag in "${FFMPEG_CONFIGURE_FLAGS[@]}"; do
+        case "$flag" in
+            --enable-libmp3lame|--enable-libopus|--enable-libvorbis|--enable-libspeex|--enable-openssl|\
+            --enable-encoder=libmp3lame|--enable-encoder=libopus|--enable-encoder=libvorbis|--enable-encoder=libspeex)
+                ;;
+            *)
+                FILTERED_CONFIGURE_FLAGS+=("$flag")
+                ;;
+        esac
+    done
+    FFMPEG_CONFIGURE_FLAGS=("${FILTERED_CONFIGURE_FLAGS[@]}")
     # Force MSVC tools to avoid confusion with MinGW tools in MSYS2 path
     export CC="cl"
     export CXX="cl"
@@ -129,4 +141,3 @@ echo "Packaging to $TAR_NAME ..."
 tar czf "$TAR_NAME" -C outputs "$(basename "$OUTPUT_DIR")"
 
 echo "Windows build complete. Output: $OUTPUT_DIR"
-
