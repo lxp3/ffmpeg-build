@@ -4,6 +4,7 @@ outputs/
 
 # Build directories
 build*/
+tmp/
 
 # Emscripten SDK
 emsdk/
