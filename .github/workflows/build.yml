@@ -80,7 +80,7 @@ jobs:
             -v ${{ github.workspace }}:/workspace \
             -w /workspace \
             quay.io/pypa/manylinux2014_x86_64 \
-            bash -c "yum install -y nasm patchelf && \
+            bash -c "yum install -y nasm patchelf lame-devel opus-devel libvorbis-devel fdk-aac-devel speex-devel && \
                      chmod +x build-linux.sh && \
                      (ENABLE_SHARED=0 ./build-linux.sh & \
                       ENABLE_SHARED=1 ./build-linux.sh & \
@@ -120,7 +120,7 @@ jobs:
       - name: Install MSYS2 dependencies
         shell: cmd
         run: |
-          C:\msys64\usr\bin\pacman.exe -Sy --noconfirm mingw-w64-x86_64-nasm make diffutils
+          C:\msys64\usr\bin\pacman.exe -Sy --noconfirm mingw-w64-x86_64-nasm make diffutils mingw-w64-x86_64-lame mingw-w64-x86_64-opus mingw-w64-x86_64-libvorbis mingw-w64-x86_64-fdk-aac mingw-w64-x86_64-speex
 
       - name: Build Windows MSVC Static
         shell: pwsh
@@ -151,6 +151,11 @@ jobs:
             base-devel
             mingw-w64-x86_64-toolchain
             mingw-w64-x86_64-nasm
+            mingw-w64-x86_64-lame
+            mingw-w64-x86_64-opus
+            mingw-w64-x86_64-libvorbis
+            mingw-w64-x86_64-fdk-aac
+            mingw-w64-x86_64-speex
             make
             diffutils
             tar
@@ -188,6 +193,11 @@ jobs:
             base-devel
             mingw-w64-x86_64-toolchain
             mingw-w64-x86_64-nasm
+            mingw-w64-x86_64-lame
+            mingw-w64-x86_64-opus
+            mingw-w64-x86_64-libvorbis
+            mingw-w64-x86_64-fdk-aac
+            mingw-w64-x86_64-speex
             make
             diffutils
             tar
