@@ -89,6 +89,11 @@ else
     FFMPEG_CONFIGURE_FLAGS+=(
         --target-os=mingw32
     )
+    if [ "$ENABLE_SHARED" -eq 0 ]; then
+        FFMPEG_CONFIGURE_FLAGS+=(
+            --pkg-config-flags=--static
+        )
+    fi
 fi
 
 OUTPUT_DIR=outputs/ffmpeg-$FFMPEG_VERSION-$LIB_TYPE-$ARCH-$TOOLCHAIN_SUFFIX
