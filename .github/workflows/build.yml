@@ -18,10 +18,9 @@ jobs:
     outputs:
       build_linux: ${{ steps.parse.outputs.build_linux }}
       build_wasm: ${{ steps.parse.outputs.build_wasm }}
-      build_windows: ${{ steps.parse.outputs.build_windows }}
-      build_msvc_static: ${{ steps.parse.outputs.build_msvc_static }}
-      build_mingw_static: ${{ steps.parse.outputs.build_mingw_static }}
-      build_mingw_shared: ${{ steps.parse.outputs.build_mingw_shared }}
+      build_windows_msvc_static: ${{ steps.parse.outputs.build_windows_msvc_static }}
+      build_windows_mingw_static: ${{ steps.parse.outputs.build_windows_mingw_static }}
+      build_windows_mingw_shared: ${{ steps.parse.outputs.build_windows_mingw_shared }}
       version: ${{ steps.parse.outputs.version }}
     steps:
       - id: parse
@@ -32,26 +31,21 @@ jobs:
           # Default: all disabled
           BUILD_LINUX=false
           BUILD_WASM=false
-          BUILD_WINDOWS=false
-          BUILD_MSVC_STATIC=false
-          BUILD_MINGW_STATIC=false
-          BUILD_MINGW_SHARED=false
+          BUILD_WINDOWS_MSVC_STATIC=false
+          BUILD_WINDOWS_MINGW_STATIC=false
+          BUILD_WINDOWS_MINGW_SHARED=false
 
           # Parse tag for specific builds
           if [[ "$TAG" == *-window-msvc-0 ]]; then
-            BUILD_WINDOWS=true
-            BUILD_MSVC_STATIC=true
+            BUILD_WINDOWS_MSVC_STATIC=true
           elif [[ "$TAG" == *-window-mingw-0 ]]; then
-            BUILD_WINDOWS=true
-            BUILD_MINGW_STATIC=true
+            BUILD_WINDOWS_MINGW_STATIC=true
           elif [[ "$TAG" == *-window-mingw-1 ]]; then
-            BUILD_WINDOWS=true
-            BUILD_MINGW_SHARED=true
+            BUILD_WINDOWS_MINGW_SHARED=true
           elif [[ "$TAG" == *-window ]]; then
-            BUILD_WINDOWS=true
-            BUILD_MSVC_STATIC=true
-            BUILD_MINGW_STATIC=true
-            BUILD_MINGW_SHARED=true
+            BUILD_WINDOWS_MSVC_STATIC=true
+            BUILD_WINDOWS_MINGW_STATIC=true
+            BUILD_WINDOWS_MINGW_SHARED=true
           elif [[ "$TAG" == *-linux ]]; then
             BUILD_LINUX=true
             BUILD_WASM=true
@@ -60,18 +54,16 @@ jobs:
           else
             BUILD_LINUX=true
             BUILD_WASM=true
-            BUILD_WINDOWS=true
-            BUILD_MSVC_STATIC=true
-            BUILD_MINGW_STATIC=true
-            BUILD_MINGW_SHARED=true
+            BUILD_WINDOWS_MSVC_STATIC=true
+            BUILD_WINDOWS_MINGW_STATIC=true
+            BUILD_WINDOWS_MINGW_SHARED=true
           fi
 
           echo "build_linux=$BUILD_LINUX" >> $GITHUB_OUTPUT
           echo "build_wasm=$BUILD_WASM" >> $GITHUB_OUTPUT
-          echo "build_windows=$BUILD_WINDOWS" >> $GITHUB_OUTPUT
-          echo "build_msvc_static=$BUILD_MSVC_STATIC" >> $GITHUB_OUTPUT
-          echo "build_mingw_static=$BUILD_MINGW_STATIC" >> $GITHUB_OUTPUT
-          echo "build_mingw_shared=$BUILD_MINGW_SHARED" >> $GITHUB_OUTPUT
+          echo "build_windows_msvc_static=$BUILD_WINDOWS_MSVC_STATIC" >> $GITHUB_OUTPUT
+          echo "build_windows_mingw_static=$BUILD_WINDOWS_MINGW_STATIC" >> $GITHUB_OUTPUT
+          echo "build_windows_mingw_shared=$BUILD_WINDOWS_MINGW_SHARED" >> $GITHUB_OUTPUT
 
       - name: Cancel workflow on failure
         if: ${{ failure() && github.run_attempt == 1 }}
@@ -88,41 +80,62 @@ jobs:
     needs: parse-tag
     if: needs.parse-tag.outputs.build_linux == 'true'
     runs-on: ubuntu-latest
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          - arch: x86_64
+            docker_platform: linux/amd64
+            container_image: quay.io/pypa/manylinux2014_x86_64
+            enable_shared: 0
+            lib_type: static
+          - arch: x86_64
+            docker_platform: linux/amd64
+            container_image: quay.io/pypa/manylinux2014_x86_64
+            enable_shared: 1
+            lib_type: shared
+          - arch: aarch64
+            docker_platform: linux/arm64
+            container_image: quay.io/pypa/manylinux2014_aarch64
+            enable_shared: 0
+            lib_type: static
+          - arch: aarch64
+            docker_platform: linux/arm64
+            container_image: quay.io/pypa/manylinux2014_aarch64
+            enable_shared: 1
+            lib_type: shared
     permissions:
       actions: write
     steps:
       - uses: actions/checkout@v4
 
-      - name: Build Linux (Static & Shared Parallel)
+      - name: Set up QEMU
+        uses: docker/setup-qemu-action@v3
+
+      - name: Build Linux
         run: |
           docker run --rm \
+            --platform ${{ matrix.docker_platform }} \
             -v ${{ github.workspace }}:/workspace \
             -w /workspace \
-            quay.io/pypa/manylinux2014_x86_64 \
+            ${{ matrix.container_image }} \
             bash -lc '
               set -euo pipefail
               yum install -y nasm patchelf lame-devel opus-devel libvorbis-devel speex-devel openssl-devel
-              chmod +x build-linux.sh
-
-              ENABLE_SHARED=0 ./build-linux.sh &
-              pid_static=$!
-              ENABLE_SHARED=1 ./build-linux.sh &
-              pid_shared=$!
-
-              wait "$pid_static"
-              wait "$pid_shared"
+              chmod +x build.sh build-linux.sh build-common.sh
+              ARCH=${{ matrix.arch }} ENABLE_SHARED=${{ matrix.enable_shared }} ENABLE_EXTERNAL_CODECS=1 TARGET_OS=linux ./build.sh
             '
 
       - name: Verify Linux Artifacts
         run: |
           ls -lah outputs
-          test -n "$(find outputs -maxdepth 1 -type f -name '*.tar.gz' -print -quit)"
+          test -n "$(find outputs -maxdepth 1 -type f -name '*-${{ matrix.lib_type }}-${{ matrix.arch }}-linux-gnu.tar.gz' -print -quit)"
 
       - name: Upload Linux Artifacts
         uses: actions/upload-artifact@v4
         with:
-          name: ffmpeg-linux-artifacts
-          path: outputs/*.tar.gz
+          name: ffmpeg-linux-${{ matrix.arch }}-${{ matrix.lib_type }}
+          path: outputs/*-${{ matrix.lib_type }}-${{ matrix.arch }}-linux-gnu.tar.gz
 
       - name: Cancel workflow on failure
         if: ${{ failure() && github.run_attempt == 1 }}
@@ -147,7 +160,7 @@ jobs:
       - name: Build WASM
         run: |
           chmod +x build-wasm.sh
-          ./build-wasm.sh
+          ENABLE_EXTERNAL_CODECS=0 ./build-wasm.sh
 
       - name: Upload WASM Artifacts
         uses: actions/upload-artifact@v4
@@ -166,138 +179,83 @@ jobs:
               run_id: context.runId,
             })
 
-  build-windows-msvc-static:
+  build-windows:
     needs: parse-tag
-    if: needs.parse-tag.outputs.build_msvc_static == 'true'
     runs-on: windows-latest
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          - output_key: build_windows_msvc_static
+            toolchain: msvc
+            enable_shared: 0
+            artifact_name: ffmpeg-windows-msvc-static
+          - output_key: build_windows_mingw_static
+            toolchain: mingw
+            enable_shared: 0
+            artifact_name: ffmpeg-windows-mingw-static
+          - output_key: build_windows_mingw_shared
+            toolchain: mingw
+            enable_shared: 1
+            artifact_name: ffmpeg-windows-mingw-shared
+    if: |
+      (matrix.output_key == 'build_windows_msvc_static' && needs.parse-tag.outputs.build_windows_msvc_static == 'true') ||
+      (matrix.output_key == 'build_windows_mingw_static' && needs.parse-tag.outputs.build_windows_mingw_static == 'true') ||
+      (matrix.output_key == 'build_windows_mingw_shared' && needs.parse-tag.outputs.build_windows_mingw_shared == 'true')
     permissions:
       actions: write
     steps:
       - uses: actions/checkout@v4
 
-      - name: Install MSYS2 dependencies
+      - name: Install MSYS2 dependencies for MSVC
+        if: matrix.toolchain == 'msvc'
         shell: cmd
         run: |
-          C:\msys64\usr\bin\pacman.exe -Sy --noconfirm mingw-w64-x86_64-nasm make diffutils mingw-w64-x86_64-lame mingw-w64-x86_64-opus mingw-w64-x86_64-libvorbis mingw-w64-x86_64-speex
+          C:\msys64\usr\bin\pacman.exe -Sy --noconfirm mingw-w64-x86_64-nasm make diffutils mingw-w64-x86_64-lame mingw-w64-x86_64-opus mingw-w64-x86_64-libvorbis mingw-w64-x86_64-speex mingw-w64-x86_64-openssl
 
-      - name: Build Windows MSVC Static
+      - name: Setup MSYS2
+        if: matrix.toolchain == 'mingw'
+        uses: msys2/setup-msys2@v2
+        with:
+          msystem: MINGW64
+          update: true
+          install: >-
+            git
+            base-devel
+            mingw-w64-x86_64-toolchain
+            mingw-w64-x86_64-nasm
+            mingw-w64-x86_64-lame
+            mingw-w64-x86_64-opus
+            mingw-w64-x86_64-libvorbis
+            mingw-w64-x86_64-speex
+            mingw-w64-x86_64-openssl
+            make
+            diffutils
+            tar
+
+      - name: Build Windows with MSVC
+        if: matrix.toolchain == 'msvc'
         shell: pwsh
         run: |
           $ErrorActionPreference = "Stop"
-          .\build-window.ps1 -Toolchain msvc -EnableShared 0
+          $env:ENABLE_EXTERNAL_CODECS = "1"
+          .\build-window.ps1 -Toolchain msvc -EnableShared ${{ matrix.enable_shared }}
 
-      - name: Upload Artifacts
-        uses: actions/upload-artifact@v4
-        with:
-          name: ffmpeg-windows-msvc-static
-          path: outputs/*.tar.gz
-
-      - name: Cancel workflow on failure
-        if: ${{ failure() && github.run_attempt == 1 }}
-        uses: actions/github-script@v7
-        with:
-          script: |
-            await github.rest.actions.cancelWorkflowRun({
-              owner: context.repo.owner,
-              repo: context.repo.repo,
-              run_id: context.runId,
-            })
-
-  build-windows-mingw-static:
-    needs: parse-tag
-    if: needs.parse-tag.outputs.build_mingw_static == 'true'
-    runs-on: windows-latest
-    permissions:
-      actions: write
-    steps:
-      - uses: actions/checkout@v4
-
-      - name: Setup MSYS2
-        uses: msys2/setup-msys2@v2
-        with:
-          msystem: MINGW64
-          update: true
-          install: >-
-            git
-            base-devel
-            mingw-w64-x86_64-toolchain
-            mingw-w64-x86_64-nasm
-            mingw-w64-x86_64-lame
-            mingw-w64-x86_64-opus
-            mingw-w64-x86_64-libvorbis
-            mingw-w64-x86_64-speex
-            make
-            diffutils
-            tar
-
-      - name: Build Windows MinGW Static
+      - name: Build Windows with MinGW
+        if: matrix.toolchain == 'mingw'
         shell: msys2 {0}
         run: |
           set -e
-          export ARCH=x86_64
-          export ENABLE_SHARED=0
+          chmod +x build.sh build-window.sh build-common.sh
+          export ENABLE_SHARED=${{ matrix.enable_shared }}
+          export ENABLE_EXTERNAL_CODECS=1
           export TOOLCHAIN=mingw
-          chmod +x build-window.sh
-          ./build-window.sh
+          TARGET_OS=windows ./build.sh
 
       - name: Upload Artifacts
         uses: actions/upload-artifact@v4
         with:
-          name: ffmpeg-windows-mingw-static
-          path: outputs/*.tar.gz
-
-      - name: Cancel workflow on failure
-        if: ${{ failure() && github.run_attempt == 1 }}
-        uses: actions/github-script@v7
-        with:
-          script: |
-            await github.rest.actions.cancelWorkflowRun({
-              owner: context.repo.owner,
-              repo: context.repo.repo,
-              run_id: context.runId,
-            })
-
-  build-windows-mingw-shared:
-    needs: parse-tag
-    if: needs.parse-tag.outputs.build_mingw_shared == 'true'
-    runs-on: windows-latest
-    permissions:
-      actions: write
-    steps:
-      - uses: actions/checkout@v4
-
-      - name: Setup MSYS2
-        uses: msys2/setup-msys2@v2
-        with:
-          msystem: MINGW64
-          update: true
-          install: >-
-            git
-            base-devel
-            mingw-w64-x86_64-toolchain
-            mingw-w64-x86_64-nasm
-            mingw-w64-x86_64-lame
-            mingw-w64-x86_64-opus
-            mingw-w64-x86_64-libvorbis
-            mingw-w64-x86_64-speex
-            make
-            diffutils
-            tar
-
-      - name: Build Windows MinGW Shared
-        shell: msys2 {0}
-        run: |
-          set -e
-          export ARCH=x86_64
-          export ENABLE_SHARED=1
-          export TOOLCHAIN=mingw
-          chmod +x build-window.sh
-          ./build-window.sh
-
-      - name: Upload Artifacts
-        uses: actions/upload-artifact@v4
-        with:
-          name: ffmpeg-windows-mingw-shared
+          name: ${{ matrix.artifact_name }}
           path: outputs/*.tar.gz
 
       - name: Cancel workflow on failure
@@ -312,8 +270,8 @@ jobs:
             })
 
   release:
-    needs: [parse-tag, build-linux, build-wasm, build-windows-msvc-static, build-windows-mingw-static, build-windows-mingw-shared]
-    if: always() && (needs.build-linux.result == 'success' || needs.build-wasm.result == 'success' || needs.build-windows-msvc-static.result == 'success' || needs.build-windows-mingw-static.result == 'success' || needs.build-windows-mingw-shared.result == 'success')
+    needs: [parse-tag, build-linux, build-wasm, build-windows]
+    if: always() && (needs.build-linux.result == 'success' || needs.build-wasm.result == 'success' || needs.build-windows.result == 'success')
     runs-on: ubuntu-latest
     permissions:
       contents: write

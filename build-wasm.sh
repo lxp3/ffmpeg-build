@@ -1,16 +1,16 @@
 #!/usr/bin/env bash
 
+set -eu
+
+source "$(dirname "$0")/build-common.sh"
+init_build_env
+
 cd "$(dirname "$0")"
 BASE_DIR=$(pwd)
 
 # Emscripten version
 EMSDK_VERSION=5.0.0
 EMSDK_DIR="$BASE_DIR/emsdk"
-
-# FFmpeg version
-FFMPEG_VERSION=7.1
-FFMPEG_TARBALL=ffmpeg-$FFMPEG_VERSION.tar.gz
-FFMPEG_TARBALL_URL=http://ffmpeg.org/releases/$FFMPEG_TARBALL
 
 echo "=== Setting up Emscripten ==="
 
@@ -42,33 +42,11 @@ fi
 echo "emcc found: $(which emcc)"
 
 echo "=== Downloading FFmpeg ==="
-
-# Download tarball if missing
-if [ ! -e "$FFMPEG_TARBALL" ]; then
-    echo "Downloading $FFMPEG_TARBALL..."
-    curl -s -L -O "$FFMPEG_TARBALL_URL"
-fi
-
-# Read flags (remove any Windows line endings)
-FFMPEG_CONFIGURE_FLAGS=()
-while IFS= read -r line || [[ -n "$line" ]]; do
-    line="${line%$'\r'}"
-    [[ -n "$line" ]] && FFMPEG_CONFIGURE_FLAGS+=("$line")
-done < ffmpeg_configure_flags.txt
+download_ffmpeg_tarball
+read_configure_flags
 
 # WASM builds do not bundle native external codec/system libraries by default.
-# Filter out flags that require separately cross-compiled third-party deps.
-WASM_FILTERED_CONFIGURE_FLAGS=()
-for flag in "${FFMPEG_CONFIGURE_FLAGS[@]}"; do
-    case "$flag" in
-        --enable-libmp3lame|--enable-libopus|--enable-libvorbis|--enable-libspeex|--enable-openssl|\
-        --enable-encoder=libmp3lame|--enable-encoder=libopus|--enable-encoder=libvorbis|--enable-encoder=libspeex)
-            ;;
-        *)
-            WASM_FILTERED_CONFIGURE_FLAGS+=("$flag")
-            ;;
-    esac
-done
+filter_external_codec_flags
 
 # Ensure configure uses clang-style toolchain args for Emscripten
 export CC=emcc
@@ -80,7 +58,6 @@ export RANLIB=emranlib
 OUTPUT_DIR=outputs/ffmpeg-$FFMPEG_VERSION-wasm
 
 # WASM is always static; derive BUILD_DIR from ENABLE_SHARED if not provided
-ENABLE_SHARED=${ENABLE_SHARED:-0}
 LIB_TYPE=static
 if [ -z "${BUILD_DIR:-}" ]; then
     BUILD_DIR="$BASE_DIR/build-${LIB_TYPE}-wasm"
@@ -122,7 +99,7 @@ WASM_CONFIGURE_FLAGS=(
 )
 
 echo "Configuring FFmpeg for WASM..."
-./configure "${WASM_CONFIGURE_FLAGS[@]}" "${WASM_FILTERED_CONFIGURE_FLAGS[@]}" || exit 1
+./configure "${WASM_CONFIGURE_FLAGS[@]}" "${FFMPEG_CONFIGURE_FLAGS[@]}" || exit 1
 
 echo "Building WASM..."
 make -j$(nproc)

@@ -2,7 +2,7 @@
 # This script acts as a wrapper to launch build-windows.sh in an MSYS2 bash environment with MSVC toolchain.
 
 param (
-    [string]$Arch = "x86_64",
+    [string]$Arch = "",
     [int]$EnableShared = 0,
     [string]$Toolchain = "msvc"
 )
@@ -78,8 +78,9 @@ $PathPart = $ScriptDir.Substring(3).Replace('\', '/')
 $MsysScriptDir = "/$Drive/$PathPart"
 
 # Build command
-# Append /mingw64/bin to PATH to find nasm, but keep it at the end to prefer MSVC tools
-$BuildScript = "export PATH=`$PATH:/mingw64/bin && cd '$MsysScriptDir' && export TOOLCHAIN=$Toolchain && export ARCH=$Arch && export ENABLE_SHARED=$EnableShared && ./build-window.sh"
+# Append /mingw64/bin to PATH to find nasm, but keep it at the end to prefer MSVC tools.
+$ArchExport = if ($Arch) { "export ARCH=$Arch && " } else { "" }
+$BuildScript = "export PATH=`$PATH:/mingw64/bin && cd '$MsysScriptDir' && export TOOLCHAIN=$Toolchain && ${ArchExport}export ENABLE_SHARED=$EnableShared && ./build-window.sh"
 
 # Execute using msys2_shell.cmd
 # For MSVC, we use -msys to avoid MinGW tools (like ar, ld) polluting the PATH.
@@ -94,4 +95,3 @@ if ($LASTEXITCODE -ne 0) {
 }
 
 Write-Host "Build finished successfully."
-

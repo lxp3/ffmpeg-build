@@ -2,36 +2,14 @@
 
 set -eu
 
-cd "$(dirname "$0")"
-BASE_DIR=$(pwd)
+source "$(dirname "$0")/build-common.sh"
 
-# Read version
-FFMPEG_VERSION=7.1
-FFMPEG_TARBALL=ffmpeg-$FFMPEG_VERSION.tar.gz
-FFMPEG_TARBALL_URL=http://ffmpeg.org/releases/$FFMPEG_TARBALL
+init_build_env
+download_ffmpeg_tarball
+read_configure_flags
+apply_optional_feature_filters
 
-# Download tarball if missing
-if [ ! -e "$FFMPEG_TARBALL" ]; then
-	echo "Downloading $FFMPEG_TARBALL..."
-	curl -s -L -O "$FFMPEG_TARBALL_URL"
-fi
-
-# Read flags (remove any Windows line endings)
-FFMPEG_CONFIGURE_FLAGS=()
-while IFS= read -r line || [[ -n "$line" ]]; do
-    line="${line%$'\r'}"
-    [[ -n "$line" ]] && FFMPEG_CONFIGURE_FLAGS+=("$line")
-done < ffmpeg_configure_flags.txt
-
-# Default settings (x86_64 only)
-ARCH=x86_64
-ENABLE_SHARED=${ENABLE_SHARED:-0}
-
-if [ "$ENABLE_SHARED" -eq 1 ]; then
-    LIB_TYPE=shared
-else
-    LIB_TYPE=static
-fi
+set_lib_type
 
 OUTPUT_DIR=outputs/ffmpeg-$FFMPEG_VERSION-$LIB_TYPE-$ARCH-linux-gnu
 
@@ -41,7 +19,6 @@ if [ -z "${BUILD_DIR:-}" ]; then
 fi
 mkdir -p "$BUILD_DIR"
 
-# Programs: always enable ffmpeg, disable ffprobe
 if [ "$LIB_TYPE" = "shared" ]; then
     FFMPEG_CONFIGURE_FLAGS+=(
         --enable-shared
@@ -59,9 +36,8 @@ FFMPEG_CONFIGURE_FLAGS+=(
     --disable-ffprobe
 )
 
-# x86_64 optimizations
 FFMPEG_CONFIGURE_FLAGS+=(
-    --extra-cflags="-O3 -fPIC -msse4.2 -mavx2 -ffunction-sections -fdata-sections"
+    --extra-cflags="$(linux_extra_cflags)"
     --extra-ldflags="-Wl,--gc-sections"
 )
 
@@ -129,4 +105,3 @@ if [ "$(id -u)" -eq 0 ]; then
 fi
 
 echo "Linux build complete. Output: $OUTPUT_DIR"
-

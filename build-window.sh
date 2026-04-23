@@ -2,8 +2,9 @@
 
 set -eu
 
-cd "$(dirname "$0")"
-BASE_DIR=$(pwd)
+source "$(dirname "$0")/build-common.sh"
+
+init_build_env
 
 # Fix for non-ASCII username in temp path
 export TMPDIR="$BASE_DIR/tmp"
@@ -11,41 +12,19 @@ export TEMP="$TMPDIR"
 export TMP="$TMPDIR"
 mkdir -p "$TMPDIR"
 
-FFMPEG_VERSION=7.1
-FFMPEG_TARBALL=ffmpeg-$FFMPEG_VERSION.tar.gz
-FFMPEG_TARBALL_URL=http://ffmpeg.org/releases/$FFMPEG_TARBALL
+download_ffmpeg_tarball
 
-# Download tarball if missing
-if [ ! -e "$FFMPEG_TARBALL" ]; then
-	echo "Downloading $FFMPEG_TARBALL..."
-	curl -s -L -O "$FFMPEG_TARBALL_URL"
-fi
-
-# Args
-ARCH=${ARCH:-x86_64}
-ENABLE_SHARED=${ENABLE_SHARED:-0}
 TOOLCHAIN=${TOOLCHAIN:-mingw}
 
-# Read flags (remove Windows line endings, skip empty lines)
-FFMPEG_CONFIGURE_FLAGS=()
-while IFS= read -r line || [[ -n "$line" ]]; do
-    line="${line%$'\r'}"
-    [[ -n "$line" ]] && FFMPEG_CONFIGURE_FLAGS+=("$line")
-done < ffmpeg_configure_flags.txt
+read_configure_flags
+apply_optional_feature_filters
 
 # Determine Lib Type
+set_lib_type
 if [ "$ENABLE_SHARED" -eq 1 ]; then
-    LIB_TYPE=shared
-    FFMPEG_CONFIGURE_FLAGS+=(
-        --enable-shared
-        --disable-static
-    )
+    FFMPEG_CONFIGURE_FLAGS+=(--enable-shared --disable-static)
 else
-    LIB_TYPE=static
-    FFMPEG_CONFIGURE_FLAGS+=(
-        --enable-static
-        --disable-shared
-    )
+    FFMPEG_CONFIGURE_FLAGS+=(--enable-static --disable-shared)
 fi
 
 # Programs: always enable ffmpeg, disable ffprobe
@@ -55,19 +34,12 @@ FFMPEG_CONFIGURE_FLAGS+=(
 )
 
 if [ "$TOOLCHAIN" = "msvc" ]; then
+    if [ "$ARCH" != "x86_64" ]; then
+        echo "MSVC builds currently support ARCH=x86_64 only." >&2
+        exit 1
+    fi
     TOOLCHAIN_SUFFIX="msvc"
-    FILTERED_CONFIGURE_FLAGS=()
-    for flag in "${FFMPEG_CONFIGURE_FLAGS[@]}"; do
-        case "$flag" in
-            --enable-libmp3lame|--enable-libopus|--enable-libvorbis|--enable-libspeex|--enable-openssl|\
-            --enable-encoder=libmp3lame|--enable-encoder=libopus|--enable-encoder=libvorbis|--enable-encoder=libspeex)
-                ;;
-            *)
-                FILTERED_CONFIGURE_FLAGS+=("$flag")
-                ;;
-        esac
-    done
-    FFMPEG_CONFIGURE_FLAGS=("${FILTERED_CONFIGURE_FLAGS[@]}")
+    filter_external_codec_flags
     # Force MSVC tools to avoid confusion with MinGW tools in MSYS2 path
     export CC="cl"
     export CXX="cl"
@@ -82,9 +54,18 @@ if [ "$TOOLCHAIN" = "msvc" ]; then
         --target-os=win64
     )
 else
-    TOOLCHAIN_SUFFIX="w64-mingw32"
-    # MinGW specific flags with O3 and SIMD optimizations
-    EXTRA_CFLAGS="-O3 -D_WIN32_WINNT=0x0601 -DWINVER=0x0601 -msse4.2 -mavx2 -ffunction-sections -fdata-sections"
+    case "$ARCH" in
+        x86_64)
+            TOOLCHAIN_SUFFIX="w64-mingw32"
+            EXTRA_CFLAGS="-O3 -D_WIN32_WINNT=0x0601 -DWINVER=0x0601 -msse4.2 -mavx2 -ffunction-sections -fdata-sections"
+            DLLTOOL_MACHINE="i386:x86-64"
+            ;;
+        aarch64)
+            TOOLCHAIN_SUFFIX="w64-mingw32"
+            EXTRA_CFLAGS="-O3 -D_WIN32_WINNT=0x0601 -DWINVER=0x0601 -ffunction-sections -fdata-sections"
+            DLLTOOL_MACHINE=""
+            ;;
+    esac
     EXTRA_LDFLAGS="-Wl,--gc-sections -Wl,--kill-at"
     FFMPEG_CONFIGURE_FLAGS+=(
         --target-os=mingw32
@@ -134,7 +115,11 @@ if [ "$ENABLE_SHARED" -eq 1 ] && [ "$TOOLCHAIN" != "msvc" ]; then
         echo "Processing $dll..."
         if command -v gendef >/dev/null; then
             gendef "$dll" > /dev/null
-            dlltool --kill-at --input-def "$base.def" --output-lib "$base.lib" --machine i386:x86-64
+            if [ -n "$DLLTOOL_MACHINE" ]; then
+                dlltool --kill-at --input-def "$base.def" --output-lib "$base.lib" --machine "$DLLTOOL_MACHINE"
+            else
+                echo "Warning: dlltool machine mapping is not configured for ARCH=$ARCH. Skipping .lib generation."
+            fi
         else
             echo "Warning: gendef not found. Skipping .lib generation."
         fi
