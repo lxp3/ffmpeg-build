@@ -5,9 +5,6 @@ set -eu
 source "$(dirname "$0")/build-common.sh"
 init_build_env
 
-cd "$(dirname "$0")"
-BASE_DIR=$(pwd)
-
 # Emscripten version
 EMSDK_VERSION=5.0.0
 EMSDK_DIR="$BASE_DIR/emsdk"
