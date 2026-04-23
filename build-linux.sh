@@ -28,6 +28,7 @@ else
     FFMPEG_CONFIGURE_FLAGS+=(
         --enable-static
         --disable-shared
+        --pkg-config-flags=--static
     )
 fi
 
