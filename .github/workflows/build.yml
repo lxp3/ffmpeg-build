@@ -121,7 +121,21 @@ jobs:
             ${{ matrix.container_image }} \
             bash -lc '
               set -euo pipefail
-              yum install -y nasm patchelf lame-devel opus-devel libvorbis-devel speex-devel openssl-devel
+              yum install -y nasm lame-devel opus-devel libvorbis-devel speex-devel openssl-devel
+
+              if [ "${{ matrix.enable_shared }}" = "1" ] && ! command -v patchelf >/dev/null; then
+                if ! yum install -y patchelf; then
+                  curl -fsSL https://github.com/NixOS/patchelf/archive/refs/tags/0.18.0.tar.gz -o /tmp/patchelf.tar.gz
+                  tar -xzf /tmp/patchelf.tar.gz -C /tmp
+                  cd /tmp/patchelf-0.18.0
+                  ./bootstrap.sh
+                  ./configure
+                  make -j"$(nproc)"
+                  make install
+                  cd /workspace
+                fi
+              fi
+
               chmod +x build.sh build-linux.sh build-common.sh
               ARCH=${{ matrix.arch }} ENABLE_SHARED=${{ matrix.enable_shared }} ENABLE_EXTERNAL_CODECS=1 TARGET_OS=linux ./build.sh
             '
