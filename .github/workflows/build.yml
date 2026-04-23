@@ -182,6 +182,10 @@ jobs:
   build-windows:
     needs: parse-tag
     runs-on: windows-latest
+    if: |
+      needs.parse-tag.outputs.build_windows_msvc_static == 'true' ||
+      needs.parse-tag.outputs.build_windows_mingw_static == 'true' ||
+      needs.parse-tag.outputs.build_windows_mingw_shared == 'true'
     strategy:
       fail-fast: false
       matrix:
@@ -198,23 +202,22 @@ jobs:
             toolchain: mingw
             enable_shared: 1
             artifact_name: ffmpeg-windows-mingw-shared
-    if: |
-      (matrix.output_key == 'build_windows_msvc_static' && needs.parse-tag.outputs.build_windows_msvc_static == 'true') ||
-      (matrix.output_key == 'build_windows_mingw_static' && needs.parse-tag.outputs.build_windows_mingw_static == 'true') ||
-      (matrix.output_key == 'build_windows_mingw_shared' && needs.parse-tag.outputs.build_windows_mingw_shared == 'true')
     permissions:
       actions: write
     steps:
       - uses: actions/checkout@v4
 
       - name: Install MSYS2 dependencies for MSVC
-        if: matrix.toolchain == 'msvc'
+        if: matrix.toolchain == 'msvc' && needs.parse-tag.outputs.build_windows_msvc_static == 'true'
         shell: cmd
         run: |
           C:\msys64\usr\bin\pacman.exe -Sy --noconfirm mingw-w64-x86_64-nasm make diffutils mingw-w64-x86_64-lame mingw-w64-x86_64-opus mingw-w64-x86_64-libvorbis mingw-w64-x86_64-speex mingw-w64-x86_64-openssl
 
       - name: Setup MSYS2
-        if: matrix.toolchain == 'mingw'
+        if: |
+          matrix.toolchain == 'mingw' &&
+          ((matrix.enable_shared == 0 && needs.parse-tag.outputs.build_windows_mingw_static == 'true') ||
+          (matrix.enable_shared == 1 && needs.parse-tag.outputs.build_windows_mingw_shared == 'true'))
         uses: msys2/setup-msys2@v2
         with:
           msystem: MINGW64
@@ -234,7 +237,7 @@ jobs:
             tar
 
       - name: Build Windows with MSVC
-        if: matrix.toolchain == 'msvc'
+        if: matrix.toolchain == 'msvc' && needs.parse-tag.outputs.build_windows_msvc_static == 'true'
         shell: pwsh
         run: |
           $ErrorActionPreference = "Stop"
@@ -242,7 +245,10 @@ jobs:
           .\build-window.ps1 -Toolchain msvc -EnableShared ${{ matrix.enable_shared }}
 
       - name: Build Windows with MinGW
-        if: matrix.toolchain == 'mingw'
+        if: |
+          matrix.toolchain == 'mingw' &&
+          ((matrix.enable_shared == 0 && needs.parse-tag.outputs.build_windows_mingw_static == 'true') ||
+          (matrix.enable_shared == 1 && needs.parse-tag.outputs.build_windows_mingw_shared == 'true'))
         shell: msys2 {0}
         run: |
           set -e
@@ -253,6 +259,10 @@ jobs:
           TARGET_OS=windows ./build.sh
 
       - name: Upload Artifacts
+        if: |
+          (matrix.toolchain == 'msvc' && needs.parse-tag.outputs.build_windows_msvc_static == 'true') ||
+          (matrix.toolchain == 'mingw' && matrix.enable_shared == 0 && needs.parse-tag.outputs.build_windows_mingw_static == 'true') ||
+          (matrix.toolchain == 'mingw' && matrix.enable_shared == 1 && needs.parse-tag.outputs.build_windows_mingw_shared == 'true')
         uses: actions/upload-artifact@v4
         with:
           name: ${{ matrix.artifact_name }}
