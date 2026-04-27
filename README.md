@@ -24,6 +24,10 @@ FFmpeg 音频编解码库的跨平台构建工具集
 | Linux | 动态库 | GCC | `ffmpeg-7.1-shared-x86_64-linux-gnu.tar.gz` |
 | Linux | 静态库 | GCC | `ffmpeg-7.1-static-aarch64-linux-gnu.tar.gz` |
 | Linux | 动态库 | GCC | `ffmpeg-7.1-shared-aarch64-linux-gnu.tar.gz` |
+| macOS | 静态库 | Clang | `ffmpeg-7.1-static-x86_64-macos.tar.gz` |
+| macOS | 动态库 | Clang | `ffmpeg-7.1-shared-x86_64-macos.tar.gz` |
+| macOS | 静态库 | Clang | `ffmpeg-7.1-static-aarch64-macos.tar.gz` |
+| macOS | 动态库 | Clang | `ffmpeg-7.1-shared-aarch64-macos.tar.gz` |
 | Windows | 静态库 | MSVC | `ffmpeg-7.1-static-x86_64-msvc.tar.gz` |
 | Windows | 静态库 | MinGW | `ffmpeg-7.1-static-x86_64-w64-mingw32.tar.gz` |
 | Windows | 动态库 | MinGW | `ffmpeg-7.1-shared-x86_64-w64-mingw32.tar.gz` |
@@ -45,6 +49,9 @@ ENABLE_SHARED=1 ./build.sh
 # 显式指定 Linux arm64
 TARGET_OS=linux ARCH=aarch64 ENABLE_SHARED=0 ./build.sh
 
+# 显式指定 macOS arm64
+TARGET_OS=macos ARCH=aarch64 ENABLE_SHARED=0 ./build.sh
+
 # 在 MSYS2 里构建 Windows MinGW 静态库
 TARGET_OS=windows TOOLCHAIN=mingw ENABLE_SHARED=0 ./build.sh
 
@@ -65,6 +72,7 @@ ENABLE_SHARED=0 ./build.sh
 
 # 显式指定平台 / 工具链 / 架构
 TARGET_OS=linux ARCH=aarch64 ENABLE_SHARED=1 ./build.sh
+TARGET_OS=macos ARCH=aarch64 ENABLE_SHARED=1 ./build.sh
 TARGET_OS=windows TOOLCHAIN=mingw ENABLE_SHARED=0 ./build.sh
 ```
 
@@ -72,6 +80,7 @@ TARGET_OS=windows TOOLCHAIN=mingw ENABLE_SHARED=0 ./build.sh
 
 - 自动检测 `ARCH`
 - `Linux` 宿主默认走 Linux 构建
+- `macOS` 宿主默认走 macOS 构建
 - `MSYS2 / GitHub Windows runner` 默认走 Windows 构建
 
 可用环境变量：
@@ -89,7 +98,7 @@ TARGET_OS=windows TOOLCHAIN=mingw ENABLE_SHARED=0 ./build.sh
   - 兼容别名：`amd64 -> x86_64`，`arm64 -> aarch64`
 - `TARGET_OS`
   - 可省略，默认按宿主系统自动判断
-  - 支持 `linux`、`windows`
+  - 支持 `linux`、`macos`、`windows`
 - `TOOLCHAIN`
   - 仅 Windows 使用
   - 支持 `mingw`、`msvc`
@@ -114,6 +123,44 @@ ARCH=aarch64 ENABLE_SHARED=0 ./build.sh
 # 无 sudo 环境
 ENABLE_EXTERNAL_CODECS=0 ENABLE_SHARED=0 ./build.sh
 ```
+
+### macOS
+
+```bash
+# 静态库
+ENABLE_SHARED=0 ./build.sh
+
+# 动态库
+ENABLE_SHARED=1 ./build.sh
+
+# 指定 arm64
+TARGET_OS=macos ARCH=aarch64 ENABLE_SHARED=0 ./build.sh
+```
+
+推荐通过 Homebrew 安装完整依赖：
+
+```bash
+brew install \
+  autoconf \
+  automake \
+  libtool \
+  pkg-config \
+  nasm \
+  yasm \
+  make \
+  bison \
+  gnu-tar \
+  xz \
+  openssl@3 \
+  lame \
+  opus \
+  libogg \
+  libvorbis \
+  speex
+```
+
+GitHub Actions 使用较新的 macOS 15 runner 构建，但显式设置
+`MACOSX_DEPLOYMENT_TARGET=12.0`，发布包按 macOS 12+ 兼容性处理。
 
 ### Windows (MSVC)
 
@@ -257,9 +304,15 @@ workflow 文件在 [.github/workflows/build.yml](/appsvc/repos/ffmpeg-build/.git
 推送 tag 后会自动构建并发布 release，规则如下：
 
 - `v7.1.0`
-  - 构建全部产物：Linux、WASM、Windows MSVC、Windows MinGW
+  - 构建全部产物：Linux、macOS、WASM、Windows MSVC、Windows MinGW
 - `v7.1.0-linux`
   - 构建 Linux + WASM
+- `v7.1.0-macos`
+  - 只构建全部 macOS 产物
+- `v7.1.0-macos-x86_64`
+  - 只构建 macOS x86_64 产物
+- `v7.1.0-macos-aarch64`
+  - 只构建 macOS aarch64 产物
 - `v7.1.0-wasm`
   - 只构建 WASM
 - `v7.1.0-window`
@@ -274,6 +327,7 @@ workflow 文件在 [.github/workflows/build.yml](/appsvc/repos/ffmpeg-build/.git
 当前 GitHub Actions 中：
 
 - Linux 使用 matrix 构建 `x86_64/aarch64` 和 `static/shared`
+- macOS 使用 matrix 构建 `x86_64/aarch64` 和 `static/shared`
 - Windows 使用 matrix 构建 `msvc static`、`mingw static`、`mingw shared`
 - Linux `aarch64` 通过 QEMU + `manylinux2014_aarch64` 容器构建
 - Windows 发布产物当前仍以 `x86_64` 为主

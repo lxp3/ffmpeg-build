@@ -51,6 +51,9 @@ resolve_target_os() {
         Linux)
             printf '%s\n' "linux"
             ;;
+        Darwin)
+            printf '%s\n' "macos"
+            ;;
         MINGW*|MSYS*|CYGWIN*)
             printf '%s\n' "windows"
             ;;
@@ -135,6 +138,17 @@ set_lib_type() {
 }
 
 linux_extra_cflags() {
+    case "$ARCH" in
+        x86_64)
+            printf '%s\n' "-O3 -fPIC -msse4.2 -mavx2 -ffunction-sections -fdata-sections"
+            ;;
+        aarch64)
+            printf '%s\n' "-O3 -fPIC -ffunction-sections -fdata-sections"
+            ;;
+    esac
+}
+
+macos_extra_cflags() {
     case "$ARCH" in
         x86_64)
             printf '%s\n' "-O3 -fPIC -msse4.2 -mavx2 -ffunction-sections -fdata-sections"

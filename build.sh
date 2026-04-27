@@ -12,11 +12,14 @@ case "$TARGET_OS" in
     linux)
         exec "$SCRIPT_DIR/build-linux.sh"
         ;;
+    macos)
+        exec "$SCRIPT_DIR/build-macos.sh"
+        ;;
     windows)
         exec "$SCRIPT_DIR/build-window.sh"
         ;;
     *)
-        echo "Unsupported TARGET_OS=$TARGET_OS. Supported: linux, windows" >&2
+        echo "Unsupported TARGET_OS=$TARGET_OS. Supported: linux, macos, windows" >&2
         exit 1
         ;;
 esac
