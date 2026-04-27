@@ -6,8 +6,11 @@ readonly BUILD_COMMON_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 
 normalize_arch() {
     local raw_arch="$1"
+    local normalized_arch
 
-    case "${raw_arch,,}" in
+    normalized_arch="$(printf '%s' "$raw_arch" | tr '[:upper:]' '[:lower:]')"
+
+    case "$normalized_arch" in
         x86_64|amd64)
             printf '%s\n' "x86_64"
             ;;
