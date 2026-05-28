@@ -29,6 +29,7 @@ else
         --enable-static
         --disable-shared
         --pkg-config-flags=--static
+        --disable-autodetect
     )
 fi
 
@@ -55,6 +56,10 @@ echo "Configuring FFmpeg..."
 echo "Building..."
 make -j$(nproc)
 make install
+
+if [ "$LIB_TYPE" = "static" ]; then
+    package_static_sdk "$BASE_DIR/$OUTPUT_DIR" linux
+fi
 
 if [ "$LIB_TYPE" = "shared" ]; then
     echo "Post-processing shared libraries..."

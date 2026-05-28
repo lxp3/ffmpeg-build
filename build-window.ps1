@@ -11,6 +11,10 @@ $ErrorActionPreference = "Stop"
 $ScriptDir = $PSScriptRoot
 Set-Location $ScriptDir
 
+if (-not $Arch) {
+    $Arch = if ($env:PROCESSOR_ARCHITECTURE -eq "ARM64") { "aarch64" } else { "x86_64" }
+}
+
 if ($Toolchain -eq "msvc" -and $EnableShared -ne 0) {
     Write-Error "Toolchain=msvc does not support shared builds. Please set EnableShared=0."
     exit 1
@@ -25,7 +29,8 @@ if ($Toolchain -eq "msvc") {
         exit 1
     }
 
-    $installPath = &$vswhere -latest -products * -requires Microsoft.VisualStudio.Component.VC.Tools.x86.x64 -property installationPath
+    $vsRequirement = if ($Arch -eq "aarch64") { "Microsoft.VisualStudio.Component.VC.Tools.ARM64" } else { "Microsoft.VisualStudio.Component.VC.Tools.x86.x64" }
+    $installPath = &$vswhere -latest -products * -requires $vsRequirement -property installationPath
     if (-not $installPath) {
         Write-Error "Visual Studio installation with C++ tools not found."
         exit 1
@@ -36,8 +41,9 @@ if ($Toolchain -eq "msvc") {
     # Get MSVC environment variables (PATH, INCLUDE, LIB, etc.)
     $vcvars = Join-Path $installPath "VC\Auxiliary\Build\vcvarsall.bat"
     $tempFile = [System.IO.Path]::GetTempFileName() + ".bat"
+    $VcvarsArch = if ($Arch -eq "aarch64" -or $Arch -eq "arm64") { "arm64" } else { "x64" }
     "@echo off
-    call `"$vcvars`" x64 > nul
+    call `"$vcvars`" $VcvarsArch > nul
     set
     " | Out-File -FilePath $tempFile -Encoding ascii
 

@@ -24,6 +24,7 @@ jobs:
       build_windows_msvc_static: ${{ steps.parse.outputs.build_windows_msvc_static }}
       build_windows_mingw_static: ${{ steps.parse.outputs.build_windows_mingw_static }}
       build_windows_mingw_shared: ${{ steps.parse.outputs.build_windows_mingw_shared }}
+      windows_arch: ${{ steps.parse.outputs.windows_arch }}
       version: ${{ steps.parse.outputs.version }}
     steps:
       - id: parse
@@ -40,6 +41,7 @@ jobs:
           BUILD_WINDOWS_MSVC_STATIC=false
           BUILD_WINDOWS_MINGW_STATIC=false
           BUILD_WINDOWS_MINGW_SHARED=false
+          WINDOWS_ARCH=all
 
           # Parse tag for specific builds
           if [[ "$TAG" == *-macos-x86_64 ]]; then
@@ -50,6 +52,34 @@ jobs:
             MACOS_ARCH=aarch64
           elif [[ "$TAG" == *-macos ]]; then
             BUILD_MACOS=true
+          elif [[ "$TAG" == *-window-aarch64 ]]; then
+            BUILD_WINDOWS_MSVC_STATIC=true
+            BUILD_WINDOWS_MINGW_STATIC=true
+            BUILD_WINDOWS_MINGW_SHARED=true
+            WINDOWS_ARCH=aarch64
+          elif [[ "$TAG" == *-window-x86_64 ]]; then
+            BUILD_WINDOWS_MSVC_STATIC=true
+            BUILD_WINDOWS_MINGW_STATIC=true
+            BUILD_WINDOWS_MINGW_SHARED=true
+            WINDOWS_ARCH=x86_64
+          elif [[ "$TAG" == *-window-msvc-0-aarch64 ]]; then
+            BUILD_WINDOWS_MSVC_STATIC=true
+            WINDOWS_ARCH=aarch64
+          elif [[ "$TAG" == *-window-msvc-0-x86_64 ]]; then
+            BUILD_WINDOWS_MSVC_STATIC=true
+            WINDOWS_ARCH=x86_64
+          elif [[ "$TAG" == *-window-mingw-0-aarch64 ]]; then
+            BUILD_WINDOWS_MINGW_STATIC=true
+            WINDOWS_ARCH=aarch64
+          elif [[ "$TAG" == *-window-mingw-0-x86_64 ]]; then
+            BUILD_WINDOWS_MINGW_STATIC=true
+            WINDOWS_ARCH=x86_64
+          elif [[ "$TAG" == *-window-mingw-1-aarch64 ]]; then
+            BUILD_WINDOWS_MINGW_SHARED=true
+            WINDOWS_ARCH=aarch64
+          elif [[ "$TAG" == *-window-mingw-1-x86_64 ]]; then
+            BUILD_WINDOWS_MINGW_SHARED=true
+            WINDOWS_ARCH=x86_64
           elif [[ "$TAG" == *-window-msvc-0 ]]; then
             BUILD_WINDOWS_MSVC_STATIC=true
           elif [[ "$TAG" == *-window-mingw-0 ]]; then
@@ -85,6 +115,7 @@ jobs:
           echo "build_windows_msvc_static=$BUILD_WINDOWS_MSVC_STATIC" >> $GITHUB_OUTPUT
           echo "build_windows_mingw_static=$BUILD_WINDOWS_MINGW_STATIC" >> $GITHUB_OUTPUT
           echo "build_windows_mingw_shared=$BUILD_WINDOWS_MINGW_SHARED" >> $GITHUB_OUTPUT
+          echo "windows_arch=$WINDOWS_ARCH" >> $GITHUB_OUTPUT
 
       - name: Cancel workflow on failure
         if: ${{ failure() && github.run_attempt == 1 }}
@@ -341,7 +372,7 @@ jobs:
 
   build-windows:
     needs: parse-tag
-    runs-on: windows-latest
+    runs-on: ${{ matrix.runner }}
     if: |
       needs.parse-tag.outputs.build_windows_msvc_static == 'true' ||
       needs.parse-tag.outputs.build_windows_mingw_static == 'true' ||
@@ -353,80 +384,143 @@ jobs:
           - output_key: build_windows_msvc_static
             toolchain: msvc
             enable_shared: 0
-            artifact_name: ffmpeg-windows-msvc-static
+            lib_type: static
+            arch: x86_64
+            runner: windows-latest
+            artifact_name: ffmpeg-windows-x86_64-msvc-static
+            artifact_glob: outputs/*-static-x86_64-msvc.tar.gz
+          - output_key: build_windows_msvc_static
+            toolchain: msvc
+            enable_shared: 0
+            lib_type: static
+            arch: aarch64
+            runner: windows-11-arm
+            artifact_name: ffmpeg-windows-aarch64-msvc-static
+            artifact_glob: outputs/*-static-aarch64-msvc.tar.gz
           - output_key: build_windows_mingw_static
             toolchain: mingw
             enable_shared: 0
-            artifact_name: ffmpeg-windows-mingw-static
+            lib_type: static
+            arch: x86_64
+            runner: windows-latest
+            msystem: MINGW64
+            package_prefix: mingw-w64-x86_64
+            artifact_name: ffmpeg-windows-x86_64-mingw-static
+            artifact_glob: outputs/*-static-x86_64-w64-mingw32.tar.gz
+          - output_key: build_windows_mingw_static
+            toolchain: mingw
+            enable_shared: 0
+            lib_type: static
+            arch: aarch64
+            runner: windows-11-arm
+            msystem: CLANGARM64
+            package_prefix: mingw-w64-clang-aarch64
+            artifact_name: ffmpeg-windows-aarch64-mingw-static
+            artifact_glob: outputs/*-static-aarch64-w64-mingw32.tar.gz
           - output_key: build_windows_mingw_shared
             toolchain: mingw
             enable_shared: 1
-            artifact_name: ffmpeg-windows-mingw-shared
+            lib_type: shared
+            arch: x86_64
+            runner: windows-latest
+            msystem: MINGW64
+            package_prefix: mingw-w64-x86_64
+            artifact_name: ffmpeg-windows-x86_64-mingw-shared
+            artifact_glob: outputs/*-shared-x86_64-w64-mingw32.tar.gz
+          - output_key: build_windows_mingw_shared
+            toolchain: mingw
+            enable_shared: 1
+            lib_type: shared
+            arch: aarch64
+            runner: windows-11-arm
+            msystem: CLANGARM64
+            package_prefix: mingw-w64-clang-aarch64
+            artifact_name: ffmpeg-windows-aarch64-mingw-shared
+            artifact_glob: outputs/*-shared-aarch64-w64-mingw32.tar.gz
     permissions:
       actions: write
     steps:
       - uses: actions/checkout@v4
 
       - name: Install MSYS2 dependencies for MSVC
-        if: matrix.toolchain == 'msvc' && needs.parse-tag.outputs.build_windows_msvc_static == 'true'
+        if: |
+          matrix.toolchain == 'msvc' &&
+          needs.parse-tag.outputs.build_windows_msvc_static == 'true' &&
+          (needs.parse-tag.outputs.windows_arch == 'all' || needs.parse-tag.outputs.windows_arch == matrix.arch)
         shell: cmd
         run: |
-          C:\msys64\usr\bin\pacman.exe -Sy --noconfirm mingw-w64-x86_64-nasm make diffutils mingw-w64-x86_64-lame mingw-w64-x86_64-opus mingw-w64-x86_64-libvorbis mingw-w64-x86_64-speex mingw-w64-x86_64-openssl
+          C:\msys64\usr\bin\pacman.exe -Sy --noconfirm nasm make diffutils
 
       - name: Setup MSYS2
         if: |
           matrix.toolchain == 'mingw' &&
+          (needs.parse-tag.outputs.windows_arch == 'all' || needs.parse-tag.outputs.windows_arch == matrix.arch) &&
           ((matrix.enable_shared == 0 && needs.parse-tag.outputs.build_windows_mingw_static == 'true') ||
           (matrix.enable_shared == 1 && needs.parse-tag.outputs.build_windows_mingw_shared == 'true'))
         uses: msys2/setup-msys2@v2
         with:
-          msystem: MINGW64
+          msystem: ${{ matrix.msystem }}
           update: true
           install: >-
             git
             base-devel
-            mingw-w64-x86_64-toolchain
-            mingw-w64-x86_64-nasm
-            mingw-w64-x86_64-lame
-            mingw-w64-x86_64-opus
-            mingw-w64-x86_64-libvorbis
-            mingw-w64-x86_64-speex
-            mingw-w64-x86_64-openssl
+            ${{ matrix.package_prefix }}-toolchain
+            ${{ matrix.package_prefix }}-nasm
+            ${{ matrix.package_prefix }}-lame
+            ${{ matrix.package_prefix }}-opus
+            ${{ matrix.package_prefix }}-libvorbis
+            ${{ matrix.package_prefix }}-speex
+            ${{ matrix.package_prefix }}-openssl
             make
             diffutils
             tar
 
       - name: Build Windows with MSVC
-        if: matrix.toolchain == 'msvc' && needs.parse-tag.outputs.build_windows_msvc_static == 'true'
+        if: |
+          matrix.toolchain == 'msvc' &&
+          needs.parse-tag.outputs.build_windows_msvc_static == 'true' &&
+          (needs.parse-tag.outputs.windows_arch == 'all' || needs.parse-tag.outputs.windows_arch == matrix.arch)
         shell: pwsh
         run: |
           $ErrorActionPreference = "Stop"
           $env:ENABLE_EXTERNAL_CODECS = "1"
-          .\build-window.ps1 -Toolchain msvc -EnableShared ${{ matrix.enable_shared }}
+          .\build-window.ps1 -Toolchain msvc -Arch ${{ matrix.arch }} -EnableShared ${{ matrix.enable_shared }}
 
       - name: Build Windows with MinGW
         if: |
           matrix.toolchain == 'mingw' &&
+          (needs.parse-tag.outputs.windows_arch == 'all' || needs.parse-tag.outputs.windows_arch == matrix.arch) &&
           ((matrix.enable_shared == 0 && needs.parse-tag.outputs.build_windows_mingw_static == 'true') ||
           (matrix.enable_shared == 1 && needs.parse-tag.outputs.build_windows_mingw_shared == 'true'))
         shell: msys2 {0}
         run: |
           set -e
           chmod +x build.sh build-window.sh build-common.sh
+          export ARCH=${{ matrix.arch }}
           export ENABLE_SHARED=${{ matrix.enable_shared }}
           export ENABLE_EXTERNAL_CODECS=1
           export TOOLCHAIN=mingw
           TARGET_OS=windows ./build.sh
 
+      - name: Verify Windows Artifact
+        if: |
+          (needs.parse-tag.outputs.windows_arch == 'all' || needs.parse-tag.outputs.windows_arch == matrix.arch) &&
+          ((matrix.toolchain == 'msvc' && needs.parse-tag.outputs.build_windows_msvc_static == 'true') ||
+          (matrix.toolchain == 'mingw' && matrix.enable_shared == 0 && needs.parse-tag.outputs.build_windows_mingw_static == 'true') ||
+          (matrix.toolchain == 'mingw' && matrix.enable_shared == 1 && needs.parse-tag.outputs.build_windows_mingw_shared == 'true'))
+        shell: bash
+        run: test -n "$(find outputs -maxdepth 1 -type f -name '*-${{ matrix.lib_type }}-${{ matrix.arch }}-*' -print -quit)"
+
       - name: Upload Artifacts
         if: |
-          (matrix.toolchain == 'msvc' && needs.parse-tag.outputs.build_windows_msvc_static == 'true') ||
+          (needs.parse-tag.outputs.windows_arch == 'all' || needs.parse-tag.outputs.windows_arch == matrix.arch) &&
+          ((matrix.toolchain == 'msvc' && needs.parse-tag.outputs.build_windows_msvc_static == 'true') ||
           (matrix.toolchain == 'mingw' && matrix.enable_shared == 0 && needs.parse-tag.outputs.build_windows_mingw_static == 'true') ||
-          (matrix.toolchain == 'mingw' && matrix.enable_shared == 1 && needs.parse-tag.outputs.build_windows_mingw_shared == 'true')
+          (matrix.toolchain == 'mingw' && matrix.enable_shared == 1 && needs.parse-tag.outputs.build_windows_mingw_shared == 'true'))
         uses: actions/upload-artifact@v4
         with:
           name: ${{ matrix.artifact_name }}
-          path: outputs/*.tar.gz
+          path: ${{ matrix.artifact_glob }}
 
       - name: Cancel workflow on failure
         if: ${{ failure() && github.run_attempt == 1 }}

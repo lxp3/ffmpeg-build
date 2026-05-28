@@ -24,7 +24,7 @@ set_lib_type
 if [ "$ENABLE_SHARED" -eq 1 ]; then
     FFMPEG_CONFIGURE_FLAGS+=(--enable-shared --disable-static)
 else
-    FFMPEG_CONFIGURE_FLAGS+=(--enable-static --disable-shared)
+    FFMPEG_CONFIGURE_FLAGS+=(--enable-static --disable-shared --disable-autodetect)
 fi
 
 # Programs: always enable ffmpeg, disable ffprobe
@@ -34,10 +34,6 @@ FFMPEG_CONFIGURE_FLAGS+=(
 )
 
 if [ "$TOOLCHAIN" = "msvc" ]; then
-    if [ "$ARCH" != "x86_64" ]; then
-        echo "MSVC builds currently support ARCH=x86_64 only." >&2
-        exit 1
-    fi
     TOOLCHAIN_SUFFIX="msvc"
     filter_external_codec_flags
     # Force MSVC tools to avoid confusion with MinGW tools in MSYS2 path
@@ -63,7 +59,7 @@ else
         aarch64)
             TOOLCHAIN_SUFFIX="w64-mingw32"
             EXTRA_CFLAGS="-O3 -D_WIN32_WINNT=0x0601 -DWINVER=0x0601 -ffunction-sections -fdata-sections"
-            DLLTOOL_MACHINE=""
+            DLLTOOL_MACHINE="arm64"
             ;;
     esac
     EXTRA_LDFLAGS="-Wl,--gc-sections -Wl,--kill-at"
@@ -107,6 +103,10 @@ make -j$(nproc)
 make install
 
 echo "Post-processing..."
+if [ "$LIB_TYPE" = "static" ]; then
+    package_static_sdk "$ABS_OUTPUT_DIR" windows "$TOOLCHAIN"
+fi
+
 if [ "$ENABLE_SHARED" -eq 1 ] && [ "$TOOLCHAIN" != "msvc" ]; then
     cd "$ABS_OUTPUT_DIR/bin"
     for dll in *.dll; do

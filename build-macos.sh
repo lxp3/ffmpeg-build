@@ -28,6 +28,7 @@ else
         --enable-static
         --disable-shared
         --pkg-config-flags=--static
+        --disable-autodetect
     )
 fi
 
@@ -55,6 +56,10 @@ echo "Configuring FFmpeg for macOS ($ARCH)..."
 echo "Building..."
 make -j"$(sysctl -n hw.ncpu)"
 make install
+
+if [ "$LIB_TYPE" = "static" ]; then
+    package_static_sdk "$BASE_DIR/$OUTPUT_DIR" macos
+fi
 
 cd "$BASE_DIR"
 TAR_NAME="${OUTPUT_DIR}.tar.gz"

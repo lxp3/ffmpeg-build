@@ -1,6 +1,7 @@
 # Build outputs
 outputs/
 *.tar.gz
+*.log
 log.txt
 
 # Build directories

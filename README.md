@@ -29,8 +29,11 @@ FFmpeg 音频编解码库的跨平台构建工具集
 | macOS | 静态库 | Clang | `ffmpeg-7.1-static-aarch64-macos.tar.gz` |
 | macOS | 动态库 | Clang | `ffmpeg-7.1-shared-aarch64-macos.tar.gz` |
 | Windows | 静态库 | MSVC | `ffmpeg-7.1-static-x86_64-msvc.tar.gz` |
+| Windows | 静态库 | MSVC | `ffmpeg-7.1-static-aarch64-msvc.tar.gz` |
 | Windows | 静态库 | MinGW | `ffmpeg-7.1-static-x86_64-w64-mingw32.tar.gz` |
+| Windows | 静态库 | MinGW | `ffmpeg-7.1-static-aarch64-w64-mingw32.tar.gz` |
 | Windows | 动态库 | MinGW | `ffmpeg-7.1-shared-x86_64-w64-mingw32.tar.gz` |
+| Windows | 动态库 | MinGW | `ffmpeg-7.1-shared-aarch64-w64-mingw32.tar.gz` |
 | WebAssembly | 静态库 | Emscripten | `ffmpeg-7.1-wasm.tar.gz` |
 
 ## 构建命令
@@ -176,6 +179,7 @@ GitHub Actions 使用较新的 macOS 15 runner 构建，但显式设置
 
 # 如需显式覆盖架构
 .\build-window.ps1 -Arch x86_64 -EnableShared 0
+.\build-window.ps1 -Arch aarch64 -EnableShared 0
 ```
 
 该脚本会自动查找 Visual Studio 环境，并启动 MSYS2 进行构建。输出的 `.lib` 文件将位于 `outputs/` 目录。
@@ -183,7 +187,7 @@ GitHub Actions 使用较新的 macOS 15 runner 构建，但显式设置
 说明：
 
 - `build-window.ps1` 是给 MSVC 准备环境的包装脚本
-- 当前 `MSVC` 仅支持 `x86_64`
+- 当前 `MSVC` 支持 `x86_64` 和 `aarch64` 静态库
 - `MSVC` 不支持 `EnableShared=1`
 
 ### Windows (MinGW - MSYS2)
@@ -317,20 +321,30 @@ workflow 文件在 [.github/workflows/build.yml](/appsvc/repos/ffmpeg-build/.git
   - 只构建 WASM
 - `v7.1.0-window`
   - 构建全部 Windows 产物
+- `v7.1.0-window-x86_64`
+  - 只构建 Windows x86_64 产物
+- `v7.1.0-window-aarch64`
+  - 只构建 Windows aarch64 产物
 - `v7.1.0-window-msvc-0`
   - 只构建 Windows MSVC 静态库
+- `v7.1.0-window-msvc-0-aarch64`
+  - 只构建 Windows MSVC aarch64 静态库
 - `v7.1.0-window-mingw-0`
   - 只构建 Windows MinGW 静态库
+- `v7.1.0-window-mingw-0-aarch64`
+  - 只构建 Windows MinGW aarch64 静态库
 - `v7.1.0-window-mingw-1`
   - 只构建 Windows MinGW 动态库
+- `v7.1.0-window-mingw-1-aarch64`
+  - 只构建 Windows MinGW aarch64 动态库
 
 当前 GitHub Actions 中：
 
 - Linux 使用 matrix 构建 `x86_64/aarch64` 和 `static/shared`
 - macOS 使用 matrix 构建 `x86_64/aarch64` 和 `static/shared`
-- Windows 使用 matrix 构建 `msvc static`、`mingw static`、`mingw shared`
+- Windows 使用 matrix 构建 `x86_64/aarch64` 的 `msvc static`、`mingw static`、`mingw shared`
 - Linux `aarch64` 通过 QEMU + `manylinux2014_aarch64` 容器构建
-- Windows 发布产物当前仍以 `x86_64` 为主
+- Windows `aarch64` 通过 `windows-11-arm` runner 构建
 
 ## 常见问题
 
@@ -359,7 +373,7 @@ ENABLE_EXTERNAL_CODECS=0 ENABLE_SHARED=0 ./build.sh
 
 ### 4. Windows arm64 现在能直接出包吗？
 
-还不能。当前只是把脚本的架构处理统一了，Linux 已经能正确区分 flags，Windows ARM 产物和 CI 发布暂未完整接通。
+可以。GitHub Actions 会在 `windows-11-arm` runner 上构建 Windows `aarch64` 的 MSVC 静态库、MinGW 静态库和 MinGW 动态库。
 
 ## License
 
