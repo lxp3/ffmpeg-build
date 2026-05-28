@@ -13,8 +13,6 @@ concurrency:
 jobs:
   parse-tag:
     runs-on: ubuntu-latest
-    permissions:
-      actions: write
     outputs:
       build_linux: ${{ steps.parse.outputs.build_linux }}
       linux_arch: ${{ steps.parse.outputs.linux_arch }}
@@ -117,17 +115,6 @@ jobs:
           echo "build_windows_mingw_shared=$BUILD_WINDOWS_MINGW_SHARED" >> $GITHUB_OUTPUT
           echo "windows_arch=$WINDOWS_ARCH" >> $GITHUB_OUTPUT
 
-      - name: Cancel workflow on failure
-        if: ${{ failure() && github.run_attempt == 1 }}
-        uses: actions/github-script@v7
-        with:
-          script: |
-            await github.rest.actions.cancelWorkflowRun({
-              owner: context.repo.owner,
-              repo: context.repo.repo,
-              run_id: context.runId,
-            })
-
   build-linux:
     needs: parse-tag
     if: needs.parse-tag.outputs.build_linux == 'true'
@@ -156,8 +143,6 @@ jobs:
             container_image: quay.io/pypa/manylinux2014_aarch64
             enable_shared: 1
             lib_type: shared
-    permissions:
-      actions: write
     steps:
       - uses: actions/checkout@v4
 
@@ -254,23 +239,10 @@ jobs:
           name: ffmpeg-linux-${{ matrix.arch }}-${{ matrix.lib_type }}
           path: outputs/*-${{ matrix.lib_type }}-${{ matrix.arch }}-linux-gnu.tar.gz
 
-      - name: Cancel workflow on failure
-        if: ${{ failure() && github.run_attempt == 1 }}
-        uses: actions/github-script@v7
-        with:
-          script: |
-            await github.rest.actions.cancelWorkflowRun({
-              owner: context.repo.owner,
-              repo: context.repo.repo,
-              run_id: context.runId,
-            })
-
   build-wasm:
     needs: parse-tag
     if: needs.parse-tag.outputs.build_wasm == 'true'
     runs-on: ubuntu-latest
-    permissions:
-      actions: write
     steps:
       - uses: actions/checkout@v4
 
@@ -284,17 +256,6 @@ jobs:
         with:
           name: ffmpeg-wasm-artifacts
           path: outputs/*.tar.gz
-
-      - name: Cancel workflow on failure
-        if: ${{ failure() && github.run_attempt == 1 }}
-        uses: actions/github-script@v7
-        with:
-          script: |
-            await github.rest.actions.cancelWorkflowRun({
-              owner: context.repo.owner,
-              repo: context.repo.repo,
-              run_id: context.runId,
-            })
 
   build-macos:
     needs: parse-tag
@@ -320,8 +281,6 @@ jobs:
             enable_shared: 1
             lib_type: shared
     runs-on: ${{ matrix.runner }}
-    permissions:
-      actions: write
     steps:
       - uses: actions/checkout@v4
 
@@ -358,17 +317,6 @@ jobs:
         with:
           name: ffmpeg-macos-${{ matrix.arch }}-${{ matrix.lib_type }}
           path: outputs/*-${{ matrix.lib_type }}-${{ matrix.arch }}-macos.tar.gz
-
-      - name: Cancel workflow on failure
-        if: ${{ failure() && github.run_attempt == 1 }}
-        uses: actions/github-script@v7
-        with:
-          script: |
-            await github.rest.actions.cancelWorkflowRun({
-              owner: context.repo.owner,
-              repo: context.repo.repo,
-              run_id: context.runId,
-            })
 
   build-windows:
     needs: parse-tag
@@ -437,8 +385,6 @@ jobs:
             package_prefix: mingw-w64-clang-aarch64
             artifact_name: ffmpeg-windows-aarch64-mingw-shared
             artifact_glob: outputs/*-shared-aarch64-w64-mingw32.tar.gz
-    permissions:
-      actions: write
     steps:
       - uses: actions/checkout@v4
 
@@ -526,20 +472,13 @@ jobs:
           name: ${{ matrix.artifact_name }}
           path: ${{ matrix.artifact_glob }}
 
-      - name: Cancel workflow on failure
-        if: ${{ failure() && github.run_attempt == 1 }}
-        uses: actions/github-script@v7
-        with:
-          script: |
-            await github.rest.actions.cancelWorkflowRun({
-              owner: context.repo.owner,
-              repo: context.repo.repo,
-              run_id: context.runId,
-            })
-
   release:
     needs: [parse-tag, build-linux, build-wasm, build-macos, build-windows]
-    if: always() && (needs.build-linux.result == 'success' || needs.build-wasm.result == 'success' || needs.build-macos.result == 'success' || needs.build-windows.result == 'success')
+    if: |
+      always() &&
+      !contains(join(needs.*.result, ','), 'failure') &&
+      !contains(join(needs.*.result, ','), 'cancelled') &&
+      contains(join(needs.*.result, ','), 'success')
     runs-on: ubuntu-latest
     permissions:
       contents: write
