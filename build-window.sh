@@ -23,7 +23,7 @@ apply_optional_feature_filters
 # Determine Lib Type
 set_lib_type
 if [ "$ENABLE_SHARED" -eq 1 ]; then
-    FFMPEG_CONFIGURE_FLAGS+=(--enable-shared --disable-static)
+    FFMPEG_CONFIGURE_FLAGS+=(--enable-shared --disable-static --pkg-config-flags=--static --disable-autodetect)
 else
     FFMPEG_CONFIGURE_FLAGS+=(--enable-static --disable-shared --disable-autodetect)
 fi
@@ -147,6 +147,7 @@ if [ "$ENABLE_SHARED" -eq 1 ] && [ "$TOOLCHAIN" != "msvc" ]; then
             echo "Warning: gendef not found. Skipping .lib generation."
         fi
     done
+    package_shared_sdk "$ABS_OUTPUT_DIR" windows "$TOOLCHAIN"
 fi
 
 cd "$BASE_DIR"

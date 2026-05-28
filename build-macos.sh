@@ -22,6 +22,8 @@ if [ "$LIB_TYPE" = "shared" ]; then
     FFMPEG_CONFIGURE_FLAGS+=(
         --enable-shared
         --disable-static
+        --pkg-config-flags=--static
+        --disable-autodetect
     )
 else
     FFMPEG_CONFIGURE_FLAGS+=(
@@ -59,6 +61,8 @@ make install
 
 if [ "$LIB_TYPE" = "static" ]; then
     package_static_sdk "$BASE_DIR/$OUTPUT_DIR" macos
+else
+    package_shared_sdk "$BASE_DIR/$OUTPUT_DIR" macos
 fi
 
 cd "$BASE_DIR"

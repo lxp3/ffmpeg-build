@@ -192,7 +192,7 @@ jobs:
                 curl -fsSL "$url" -o "/tmp/$name-$version.tar.gz"
                 tar -xzf "/tmp/$name-$version.tar.gz" -C /tmp
                 cd "/tmp/$dir"
-                ./configure --prefix="$DEPS_PREFIX" --disable-dependency-tracking
+                CFLAGS="-O2 -fPIC" ./configure --prefix="$DEPS_PREFIX" --disable-dependency-tracking --disable-shared --enable-static
                 make -j"$(nproc)"
                 make install
                 cd /workspace
@@ -201,17 +201,12 @@ jobs:
               curl -fsSL https://www.openssl.org/source/openssl-3.0.14.tar.gz -o /tmp/openssl-3.0.14.tar.gz
               tar -xzf /tmp/openssl-3.0.14.tar.gz -C /tmp
               cd /tmp/openssl-3.0.14
-              if [ "${{ matrix.enable_shared }}" = "1" ]; then
-                OPENSSL_SHARED=shared
-              else
-                OPENSSL_SHARED=no-shared
-              fi
               if [ "${{ matrix.arch }}" = "aarch64" ]; then
                 OPENSSL_TARGET=linux-aarch64
               else
                 OPENSSL_TARGET=linux-x86_64
               fi
-              ./Configure "$OPENSSL_TARGET" "$OPENSSL_SHARED" --prefix="$DEPS_PREFIX" --libdir=lib
+              ./Configure "$OPENSSL_TARGET" no-shared -fPIC --prefix="$DEPS_PREFIX" --libdir=lib
               make -j"$(nproc)"
               make install_sw
               cd /workspace

@@ -193,34 +193,47 @@ generate_ffmpeg_cmake_config() {
     local sdk_prefix="$1"
     local platform="$2"
     local toolchain="${3:-}"
+    local lib_type="${4:-static}"
     local cmake_dir="$sdk_prefix/lib/cmake/FFmpeg"
     local third_party_libs=""
     local system_libs=""
     local lib_ext=".a"
     local ffmpeg_lib_prefix="lib"
+    local imported_type="STATIC"
 
     mkdir -p "$cmake_dir"
 
-    case "$platform:$toolchain" in
-        linux:*)
-            third_party_libs="mp3lame;opus;vorbisenc;vorbis;ogg;speex;ssl;crypto"
-            system_libs="m;pthread;dl;rt;atomic"
-            ;;
-        macos:*)
-            third_party_libs="mp3lame;opus;vorbisenc;vorbis;ogg;speex;ssl;crypto"
-            system_libs="-framework;CoreFoundation;-framework;Security;-framework;AudioToolbox;-framework;CoreAudio;-framework;VideoToolbox;-framework;CoreMedia;-framework;CoreVideo;-framework;AVFoundation;-framework;AppKit;-framework;Foundation;m;pthread;z;bz2;iconv"
-            ;;
-        windows:mingw)
-            third_party_libs="mp3lame;opus;vorbisenc;vorbis;ogg;speex;ssl;crypto"
-            system_libs="ws2_32;bcrypt;crypt32;user32;advapi32;ole32;strmiids;uuid;gdi32;psapi"
-            ;;
-        windows:msvc)
-            lib_ext=".lib"
-            ffmpeg_lib_prefix=""
-            third_party_libs=""
-            system_libs="ws2_32;bcrypt;crypt32;user32;advapi32;ole32;strmiids;uuid;gdi32;psapi"
-            ;;
-    esac
+    if [ "$lib_type" = "shared" ]; then
+        imported_type="SHARED"
+        third_party_libs=""
+        system_libs=""
+    else
+        case "$platform:$toolchain" in
+            linux:*)
+                third_party_libs="mp3lame;opus;vorbisenc;vorbis;ogg;speex;ssl;crypto"
+                system_libs="m;pthread;dl;rt;atomic"
+                ;;
+            macos:*)
+                third_party_libs="mp3lame;opus;vorbisenc;vorbis;ogg;speex;ssl;crypto"
+                system_libs="-framework;CoreFoundation;-framework;Security;-framework;AudioToolbox;-framework;CoreAudio;-framework;VideoToolbox;-framework;CoreMedia;-framework;CoreVideo;-framework;AVFoundation;-framework;AppKit;-framework;Foundation;m;pthread;z;bz2;iconv"
+                ;;
+            windows:mingw)
+                third_party_libs="mp3lame;opus;vorbisenc;vorbis;ogg;speex;ssl;crypto"
+                system_libs="ws2_32;bcrypt;crypt32;user32;advapi32;ole32;strmiids;uuid;gdi32;psapi"
+                ;;
+            windows:msvc)
+                lib_ext=".lib"
+                ffmpeg_lib_prefix=""
+                third_party_libs=""
+                system_libs="ws2_32;bcrypt;crypt32;user32;advapi32;ole32;strmiids;uuid;gdi32;psapi"
+                ;;
+        esac
+    fi
+
+    if [ "$platform:$toolchain" = "windows:msvc" ]; then
+        lib_ext=".lib"
+        ffmpeg_lib_prefix=""
+    fi
 
     cat > "$cmake_dir/FFmpegConfig.cmake" <<EOF
 include_guard(GLOBAL)
@@ -232,9 +245,13 @@ set(FFmpeg_FOUND TRUE)
 set(FFmpeg_ROOT "\${_ffmpeg_prefix}")
 set(FFmpeg_INCLUDE_DIR "\${_ffmpeg_prefix}/include")
 set(FFmpeg_LIBRARY_DIR "\${_ffmpeg_prefix}/lib")
+set(FFmpeg_BINARY_DIR "\${_ffmpeg_prefix}/bin")
 
 set(_ffmpeg_library_suffix "$lib_ext")
 set(_ffmpeg_library_prefix "$ffmpeg_lib_prefix")
+set(_ffmpeg_imported_type "$imported_type")
+set(_ffmpeg_package_platform "$platform")
+set(_ffmpeg_package_toolchain "$toolchain")
 set(_ffmpeg_components
     avdevice
     avfilter
@@ -249,11 +266,44 @@ set(_ffmpeg_system_libs "$system_libs")
 
 foreach(_ffmpeg_lib IN LISTS _ffmpeg_components)
     if(NOT TARGET ffmpeg::\${_ffmpeg_lib})
-        add_library(ffmpeg::\${_ffmpeg_lib} STATIC IMPORTED)
+        add_library(ffmpeg::\${_ffmpeg_lib} \${_ffmpeg_imported_type} IMPORTED)
         set_target_properties(ffmpeg::\${_ffmpeg_lib} PROPERTIES
-            IMPORTED_LOCATION "\${FFmpeg_LIBRARY_DIR}/\${_ffmpeg_library_prefix}\${_ffmpeg_lib}\${_ffmpeg_library_suffix}"
             INTERFACE_INCLUDE_DIRECTORIES "\${FFmpeg_INCLUDE_DIR}"
         )
+        if(_ffmpeg_imported_type STREQUAL "SHARED" AND WIN32)
+            file(GLOB _ffmpeg_implib
+                "\${FFmpeg_LIBRARY_DIR}/lib\${_ffmpeg_lib}.dll.a"
+                "\${FFmpeg_LIBRARY_DIR}/\${_ffmpeg_lib}.lib"
+                "\${FFmpeg_BINARY_DIR}/\${_ffmpeg_lib}.lib"
+                "\${FFmpeg_BINARY_DIR}/\${_ffmpeg_lib}-*.lib"
+            )
+            file(GLOB _ffmpeg_location
+                "\${FFmpeg_BINARY_DIR}/\${_ffmpeg_lib}-*.dll"
+                "\${FFmpeg_BINARY_DIR}/\${_ffmpeg_lib}.dll"
+            )
+            if(_ffmpeg_implib)
+                list(GET _ffmpeg_implib 0 _ffmpeg_implib_path)
+                set_target_properties(ffmpeg::\${_ffmpeg_lib} PROPERTIES IMPORTED_IMPLIB "\${_ffmpeg_implib_path}")
+            endif()
+            if(_ffmpeg_location)
+                list(GET _ffmpeg_location 0 _ffmpeg_location_path)
+                set_target_properties(ffmpeg::\${_ffmpeg_lib} PROPERTIES IMPORTED_LOCATION "\${_ffmpeg_location_path}")
+            endif()
+        elseif(_ffmpeg_imported_type STREQUAL "SHARED" AND APPLE)
+            set_target_properties(ffmpeg::\${_ffmpeg_lib} PROPERTIES
+                IMPORTED_LOCATION "\${FFmpeg_LIBRARY_DIR}/lib\${_ffmpeg_lib}.dylib"
+            )
+        elseif(_ffmpeg_imported_type STREQUAL "SHARED")
+            file(GLOB _ffmpeg_location "\${FFmpeg_LIBRARY_DIR}/lib\${_ffmpeg_lib}.so*")
+            if(_ffmpeg_location)
+                list(GET _ffmpeg_location 0 _ffmpeg_location_path)
+                set_target_properties(ffmpeg::\${_ffmpeg_lib} PROPERTIES IMPORTED_LOCATION "\${_ffmpeg_location_path}")
+            endif()
+        else()
+            set_target_properties(ffmpeg::\${_ffmpeg_lib} PROPERTIES
+                IMPORTED_LOCATION "\${FFmpeg_LIBRARY_DIR}/\${_ffmpeg_library_prefix}\${_ffmpeg_lib}\${_ffmpeg_library_suffix}"
+            )
+        endif()
     endif()
 endforeach()
 
@@ -278,11 +328,28 @@ unset(_ffmpeg_config_dir)
 unset(_ffmpeg_prefix)
 unset(_ffmpeg_library_suffix)
 unset(_ffmpeg_library_prefix)
+unset(_ffmpeg_imported_type)
+unset(_ffmpeg_package_platform)
+unset(_ffmpeg_package_toolchain)
 unset(_ffmpeg_components)
 unset(_ffmpeg_third_party_names)
 unset(_ffmpeg_third_party_libs)
 unset(_ffmpeg_system_libs)
+unset(_ffmpeg_implib)
+unset(_ffmpeg_implib_path)
+unset(_ffmpeg_location)
+unset(_ffmpeg_location_path)
 EOF
+}
+
+package_shared_sdk() {
+    local sdk_prefix="$1"
+    local platform="$2"
+    local toolchain="${3:-}"
+
+    echo "Packaging shared SDK metadata..."
+    rewrite_pkgconfig_prefixes "$sdk_prefix"
+    generate_ffmpeg_cmake_config "$sdk_prefix" "$platform" "$toolchain" shared
 }
 
 package_static_sdk() {
@@ -319,5 +386,5 @@ package_static_sdk() {
     esac
 
     rewrite_pkgconfig_prefixes "$sdk_prefix"
-    generate_ffmpeg_cmake_config "$sdk_prefix" "$platform" "$toolchain"
+    generate_ffmpeg_cmake_config "$sdk_prefix" "$platform" "$toolchain" static
 }
