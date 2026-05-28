@@ -1,40 +1,42 @@
 # FFmpeg Build
 
-FFmpeg 音频编解码库的跨平台构建工具集
+FFmpeg Build 是一个面向 C/C++ 项目的跨平台 FFmpeg 预编译库构建工程，重点关注音频编解码和常见媒体处理能力。
+
+本项目发布静态库和动态库包，覆盖 Linux、macOS、Windows 和 WebAssembly，适合在播放器、录音、转码、流媒体、音频分析等项目中直接集成。静态发布包会携带外部音频编码依赖和 `FFmpegConfig.cmake`，让下游项目通过 CMake 更稳定地消费 FFmpeg，减少手动对齐系统依赖的成本。
 
 ## 功能特性
 
-本项目专注于音频处理，支持：
-
-| 功能 | 支持 |
-|------|------|
-| 从视频提取音频 | 支持 (MP4/MKV/AVI/FLV 等) |
-| 麦克风录制 (dshow) | 支持 |
-| 流式音频 (HTTP/RTMP/RTSP) | 支持 |
-| 音频格式转换 | 支持 |
-| AAC/MP3/FLAC/WAV/OGG/Opus | 支持编解码 |
-| PCM 各种格式 | 支持编解码 |
-| 视频编码 | 不支持 |
+- 专注音频编解码：支持 AAC、MP3、FLAC、WAV、OGG、Opus、Speex、PCM 等常见音频格式。
+- 支持常见媒体处理：可用于音频提取、格式转换、流式音频读取、麦克风采集等场景。
+- 跨平台发布：覆盖 Linux、macOS、Windows、WebAssembly，并支持 x86_64 和 aarch64。
+- C/C++ 友好集成：静态包提供 `FFmpegConfig.cmake`，下游 CMake 项目可直接 `find_package(FFmpeg CONFIG REQUIRED)`。
+- 兼容性优先：构建脚本统一控制 FFmpeg 配置、外部 codecs、汇编优化和平台工具链，减少不同项目重复处理环境依赖的问题。
+- 音频能力优先：默认不启用视频编码能力，减少包体和依赖复杂度。
 
 ## 发布包
 
-| 平台 | 类型 | 编译器 | 汇编优化 | 包名 |
-|------|------|--------|----------|------|
-| Linux | 静态库 | GCC | ✓ | `ffmpeg-7.1-static-x86_64-linux-gnu.tar.gz` |
-| Linux | 动态库 | GCC | ✓ | `ffmpeg-7.1-shared-x86_64-linux-gnu.tar.gz` |
-| Linux | 静态库 | GCC | ✓ | `ffmpeg-7.1-static-aarch64-linux-gnu.tar.gz` |
-| Linux | 动态库 | GCC | ✓ | `ffmpeg-7.1-shared-aarch64-linux-gnu.tar.gz` |
-| macOS | 静态库 | Clang | ✓ | `ffmpeg-7.1-static-x86_64-macos.tar.gz` |
-| macOS | 动态库 | Clang | ✓ | `ffmpeg-7.1-shared-x86_64-macos.tar.gz` |
-| macOS | 静态库 | Clang | ✓ | `ffmpeg-7.1-static-aarch64-macos.tar.gz` |
-| macOS | 动态库 | Clang | ✓ | `ffmpeg-7.1-shared-aarch64-macos.tar.gz` |
-| Windows | 静态库 | MSVC | ✓ | `ffmpeg-7.1-static-x86_64-msvc.tar.gz` |
-| Windows | 静态库 | MSVC | ✗ | `ffmpeg-7.1-static-aarch64-msvc.tar.gz` |
-| Windows | 静态库 | MinGW | ✓ | `ffmpeg-7.1-static-x86_64-w64-mingw32.tar.gz` |
-| Windows | 静态库 | MinGW | ✓ | `ffmpeg-7.1-static-aarch64-w64-mingw32.tar.gz` |
-| Windows | 动态库 | MinGW | ✓ | `ffmpeg-7.1-shared-x86_64-w64-mingw32.tar.gz` |
-| Windows | 动态库 | MinGW | ✓ | `ffmpeg-7.1-shared-aarch64-w64-mingw32.tar.gz` |
-| WebAssembly | 静态库 | Emscripten | ✓ | `ffmpeg-7.1-wasm.tar.gz` |
+| 平台 | 编译器 | 类型 | 汇编优化 | 外部codecs | 包名 |
+|------|--------|------|----------|------------|------|
+| Linux | GCC | static | ✓ | ✓ | `ffmpeg-7.1-static-x86_64-linux-gnu.tar.gz` |
+| Linux | GCC | shared | ✓ | ✓ | `ffmpeg-7.1-shared-x86_64-linux-gnu.tar.gz` |
+| Linux | GCC | static | ✓ | ✓ | `ffmpeg-7.1-static-aarch64-linux-gnu.tar.gz` |
+| Linux | GCC | shared | ✓ | ✓ | `ffmpeg-7.1-shared-aarch64-linux-gnu.tar.gz` |
+| macOS | Clang | static | ✓ | ✓ | `ffmpeg-7.1-static-x86_64-macos.tar.gz` |
+| macOS | Clang | shared | ✓ | ✓ | `ffmpeg-7.1-shared-x86_64-macos.tar.gz` |
+| macOS | Clang | static | ✓ | ✓ | `ffmpeg-7.1-static-aarch64-macos.tar.gz` |
+| macOS | Clang | shared | ✓ | ✓ | `ffmpeg-7.1-shared-aarch64-macos.tar.gz` |
+| Windows | MSVC | static | ✓ | ✓ | `ffmpeg-7.1-static-x86_64-msvc.tar.gz` |
+| Windows | MSVC | static | ✗ | ✓ | `ffmpeg-7.1-static-aarch64-msvc.tar.gz` |
+| Windows | MinGW | static | ✓ | ✓ | `ffmpeg-7.1-static-x86_64-w64-mingw32.tar.gz` |
+| Windows | MinGW | static | ✓ | ✓ | `ffmpeg-7.1-static-aarch64-w64-mingw32.tar.gz` |
+| Windows | MinGW | shared | ✓ | ✓ | `ffmpeg-7.1-shared-x86_64-w64-mingw32.tar.gz` |
+| Windows | MinGW | shared | ✓ | ✓ | `ffmpeg-7.1-shared-aarch64-w64-mingw32.tar.gz` |
+| WebAssembly | Emscripten | static | ✓ | ✓ | `ffmpeg-7.1-wasm.tar.gz` |
+
+`外部codecs` 表示构建时是否启用 FFmpeg 外部音频编码依赖：
+
+- `✓`：启用 `libmp3lame`、`libopus`、`libvorbis`、`libspeex` 等外部 codec。静态包会把相关第三方静态库一起放入 `lib/`，并通过 `FFmpegConfig.cmake` 暴露给 CMake 消费方。
+- `✗`：不启用外部 codec，仅使用 FFmpeg 内建能力，适合依赖受限或只需要基础格式处理的环境。
 
 ## 构建命令
 
