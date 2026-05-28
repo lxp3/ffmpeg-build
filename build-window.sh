@@ -15,6 +15,7 @@ mkdir -p "$TMPDIR"
 download_ffmpeg_tarball
 
 TOOLCHAIN=${TOOLCHAIN:-mingw}
+CONFIGURE_TOOL_FLAGS=()
 
 read_configure_flags
 apply_optional_feature_filters
@@ -63,6 +64,20 @@ else
             ;;
         aarch64)
             TOOLCHAIN_SUFFIX="w64-mingw32"
+            export CC="${CC:-clang}"
+            export CXX="${CXX:-clang++}"
+            export AR="${AR:-llvm-ar}"
+            export NM="${NM:-llvm-nm}"
+            export RANLIB="${RANLIB:-llvm-ranlib}"
+            export STRIP="${STRIP:-llvm-strip}"
+            CONFIGURE_TOOL_FLAGS=(
+                --cc="$CC"
+                --cxx="$CXX"
+                --ar="$AR"
+                --nm="$NM"
+                --ranlib="$RANLIB"
+                --strip="$STRIP"
+            )
             EXTRA_CFLAGS="-O3 -D_WIN32_WINNT=0x0601 -DWINVER=0x0601 -ffunction-sections -fdata-sections"
             DLLTOOL_MACHINE="arm64"
             ;;
@@ -95,6 +110,7 @@ tar --strip-components=1 -xf "$BASE_DIR/$FFMPEG_TARBALL"
 echo "Configuring FFmpeg for Windows ($ARCH, Toolchain=$TOOLCHAIN)..."
 ./configure \
     "${FFMPEG_CONFIGURE_FLAGS[@]}" \
+    "${CONFIGURE_TOOL_FLAGS[@]}" \
     --prefix="$ABS_OUTPUT_DIR" \
     --arch="$ARCH" \
     --enable-runtime-cpudetect \
@@ -102,7 +118,9 @@ echo "Configuring FFmpeg for Windows ($ARCH, Toolchain=$TOOLCHAIN)..."
     --extra-cflags="$EXTRA_CFLAGS" \
     --extra-ldflags="$EXTRA_LDFLAGS"
     
-sed -i 's/#define CC_IDENT.*/#define CC_IDENT "MSVC"/' config.h
+if [ "$TOOLCHAIN" = "msvc" ]; then
+    sed -i 's/#define CC_IDENT.*/#define CC_IDENT "MSVC"/' config.h
+fi
 echo "Building..."
 make -j$(nproc)
 make install
