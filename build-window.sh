@@ -49,6 +49,11 @@ if [ "$TOOLCHAIN" = "msvc" ]; then
         --toolchain=msvc
         --target-os=win64
     )
+    if [ "$ARCH" = "aarch64" ]; then
+        FFMPEG_CONFIGURE_FLAGS+=(
+            --disable-asm
+        )
+    fi
 else
     case "$ARCH" in
         x86_64)
