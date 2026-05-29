@@ -15,22 +15,21 @@ jobs:
     runs-on: ubuntu-latest
     outputs:
       build_linux: ${{ steps.parse.outputs.build_linux }}
-      linux_arch: ${{ steps.parse.outputs.linux_arch }}
       build_macos: ${{ steps.parse.outputs.build_macos }}
-      macos_arch: ${{ steps.parse.outputs.macos_arch }}
       build_wasm: ${{ steps.parse.outputs.build_wasm }}
-      build_windows_msvc_static: ${{ steps.parse.outputs.build_windows_msvc_static }}
-      build_windows_mingw_static: ${{ steps.parse.outputs.build_windows_mingw_static }}
-      build_windows_mingw_shared: ${{ steps.parse.outputs.build_windows_mingw_shared }}
-      windows_arch: ${{ steps.parse.outputs.windows_arch }}
+      build_windows: ${{ steps.parse.outputs.build_windows }}
+      linux_matrix: ${{ steps.parse.outputs.linux_matrix }}
+      macos_matrix: ${{ steps.parse.outputs.macos_matrix }}
+      windows_matrix: ${{ steps.parse.outputs.windows_matrix }}
       version: ${{ steps.parse.outputs.version }}
     steps:
       - id: parse
         run: |
-          TAG="${GITHUB_REF#refs/tags/}"
-          echo "version=${TAG}" >> $GITHUB_OUTPUT
+          set -euo pipefail
 
-          # Default: all disabled
+          TAG="${GITHUB_REF#refs/tags/}"
+          echo "version=${TAG}" >> "$GITHUB_OUTPUT"
+
           BUILD_LINUX=false
           LINUX_ARCH=all
           BUILD_MACOS=false
@@ -41,7 +40,6 @@ jobs:
           BUILD_WINDOWS_MINGW_SHARED=false
           WINDOWS_ARCH=all
 
-          # Parse tag for specific builds
           if [[ "$TAG" == *-macos-x86_64 ]]; then
             BUILD_MACOS=true
             MACOS_ARCH=x86_64
@@ -105,367 +103,88 @@ jobs:
             BUILD_WINDOWS_MINGW_SHARED=true
           fi
 
-          echo "build_linux=$BUILD_LINUX" >> $GITHUB_OUTPUT
-          echo "linux_arch=$LINUX_ARCH" >> $GITHUB_OUTPUT
-          echo "build_macos=$BUILD_MACOS" >> $GITHUB_OUTPUT
-          echo "macos_arch=$MACOS_ARCH" >> $GITHUB_OUTPUT
-          echo "build_wasm=$BUILD_WASM" >> $GITHUB_OUTPUT
-          echo "build_windows_msvc_static=$BUILD_WINDOWS_MSVC_STATIC" >> $GITHUB_OUTPUT
-          echo "build_windows_mingw_static=$BUILD_WINDOWS_MINGW_STATIC" >> $GITHUB_OUTPUT
-          echo "build_windows_mingw_shared=$BUILD_WINDOWS_MINGW_SHARED" >> $GITHUB_OUTPUT
-          echo "windows_arch=$WINDOWS_ARCH" >> $GITHUB_OUTPUT
+          BUILD_WINDOWS=false
+          if [ "$BUILD_WINDOWS_MSVC_STATIC" = "true" ] || [ "$BUILD_WINDOWS_MINGW_STATIC" = "true" ] || [ "$BUILD_WINDOWS_MINGW_SHARED" = "true" ]; then
+            BUILD_WINDOWS=true
+          fi
+
+          linux_matrix="$(
+            jq -cn --arg arch "$LINUX_ARCH" '
+              [
+                {arch:"x86_64", runner:"ubuntu-latest", docker_platform:"linux/amd64", container_image:"quay.io/pypa/manylinux2014_x86_64", enable_shared:0, lib_type:"static"},
+                {arch:"x86_64", runner:"ubuntu-latest", docker_platform:"linux/amd64", container_image:"quay.io/pypa/manylinux2014_x86_64", enable_shared:1, lib_type:"shared"},
+                {arch:"aarch64", runner:"ubuntu-24.04-arm", docker_platform:"linux/arm64", container_image:"quay.io/pypa/manylinux2014_aarch64", enable_shared:0, lib_type:"static"},
+                {arch:"aarch64", runner:"ubuntu-24.04-arm", docker_platform:"linux/arm64", container_image:"quay.io/pypa/manylinux2014_aarch64", enable_shared:1, lib_type:"shared"}
+              ] | if $arch == "all" then . else map(select(.arch == $arch)) end | {include:.}
+            '
+          )"
+          macos_matrix="$(
+            jq -cn --arg arch "$MACOS_ARCH" '
+              [
+                {arch:"x86_64", runner:"macos-15-intel", enable_shared:0, lib_type:"static"},
+                {arch:"x86_64", runner:"macos-15-intel", enable_shared:1, lib_type:"shared"},
+                {arch:"aarch64", runner:"macos-15", enable_shared:0, lib_type:"static"},
+                {arch:"aarch64", runner:"macos-15", enable_shared:1, lib_type:"shared"}
+              ] | if $arch == "all" then . else map(select(.arch == $arch)) end | {include:.}
+            '
+          )"
+          windows_matrix="$(
+            jq -cn \
+              --arg arch "$WINDOWS_ARCH" \
+              --arg msvc "$BUILD_WINDOWS_MSVC_STATIC" \
+              --arg mingw_static "$BUILD_WINDOWS_MINGW_STATIC" \
+              --arg mingw_shared "$BUILD_WINDOWS_MINGW_SHARED" '
+              [
+                {output_key:"build_windows_msvc_static", toolchain:"msvc", enable_shared:0, lib_type:"static", arch:"x86_64", runner:"windows-latest", artifact_name:"ffmpeg-windows-x86_64-msvc-static", artifact_glob:"outputs/*-static-x86_64-msvc.tar.gz"},
+                {output_key:"build_windows_msvc_static", toolchain:"msvc", enable_shared:0, lib_type:"static", arch:"aarch64", runner:"windows-11-arm", artifact_name:"ffmpeg-windows-aarch64-msvc-static", artifact_glob:"outputs/*-static-aarch64-msvc.tar.gz"},
+                {output_key:"build_windows_mingw_static", toolchain:"mingw", enable_shared:0, lib_type:"static", arch:"x86_64", runner:"windows-latest", msystem:"MINGW64", package_prefix:"mingw-w64-x86_64", artifact_name:"ffmpeg-windows-x86_64-mingw-static", artifact_glob:"outputs/*-static-x86_64-w64-mingw32.tar.gz"},
+                {output_key:"build_windows_mingw_static", toolchain:"mingw", enable_shared:0, lib_type:"static", arch:"aarch64", runner:"windows-11-arm", msystem:"CLANGARM64", package_prefix:"mingw-w64-clang-aarch64", artifact_name:"ffmpeg-windows-aarch64-mingw-static", artifact_glob:"outputs/*-static-aarch64-w64-mingw32.tar.gz"},
+                {output_key:"build_windows_mingw_shared", toolchain:"mingw", enable_shared:1, lib_type:"shared", arch:"x86_64", runner:"windows-latest", msystem:"MINGW64", package_prefix:"mingw-w64-x86_64", artifact_name:"ffmpeg-windows-x86_64-mingw-shared", artifact_glob:"outputs/*-shared-x86_64-w64-mingw32.tar.gz"},
+                {output_key:"build_windows_mingw_shared", toolchain:"mingw", enable_shared:1, lib_type:"shared", arch:"aarch64", runner:"windows-11-arm", msystem:"CLANGARM64", package_prefix:"mingw-w64-clang-aarch64", artifact_name:"ffmpeg-windows-aarch64-mingw-shared", artifact_glob:"outputs/*-shared-aarch64-w64-mingw32.tar.gz"}
+              ] | map(select(
+                ($arch == "all" or .arch == $arch) and
+                ((.output_key == "build_windows_msvc_static" and $msvc == "true") or
+                 (.output_key == "build_windows_mingw_static" and $mingw_static == "true") or
+                 (.output_key == "build_windows_mingw_shared" and $mingw_shared == "true"))
+              )) | {include:.}
+            '
+          )"
+
+          {
+            echo "build_linux=$BUILD_LINUX"
+            echo "build_macos=$BUILD_MACOS"
+            echo "build_wasm=$BUILD_WASM"
+            echo "build_windows=$BUILD_WINDOWS"
+            echo "linux_matrix=$linux_matrix"
+            echo "macos_matrix=$macos_matrix"
+            echo "windows_matrix=$windows_matrix"
+          } >> "$GITHUB_OUTPUT"
 
   build-linux:
     needs: parse-tag
     if: needs.parse-tag.outputs.build_linux == 'true'
-    runs-on: ubuntu-latest
-    strategy:
-      fail-fast: false
-      matrix:
-        include:
-          - arch: x86_64
-            docker_platform: linux/amd64
-            container_image: quay.io/pypa/manylinux2014_x86_64
-            enable_shared: 0
-            lib_type: static
-          - arch: x86_64
-            docker_platform: linux/amd64
-            container_image: quay.io/pypa/manylinux2014_x86_64
-            enable_shared: 1
-            lib_type: shared
-          - arch: aarch64
-            docker_platform: linux/arm64
-            container_image: quay.io/pypa/manylinux2014_aarch64
-            enable_shared: 0
-            lib_type: static
-          - arch: aarch64
-            docker_platform: linux/arm64
-            container_image: quay.io/pypa/manylinux2014_aarch64
-            enable_shared: 1
-            lib_type: shared
-    steps:
-      - uses: actions/checkout@v4
-
-      - name: Set up QEMU
-        uses: docker/setup-qemu-action@v3
-
-      - name: Build Linux
-        if: needs.parse-tag.outputs.linux_arch == 'all' || needs.parse-tag.outputs.linux_arch == matrix.arch
-        run: |
-          docker run --rm \
-            --platform ${{ matrix.docker_platform }} \
-            -v ${{ github.workspace }}:/workspace \
-            -w /workspace \
-            ${{ matrix.container_image }} \
-            bash -lc '
-              set -euo pipefail
-              yum install -y gcc gcc-c++ make autoconf automake libtool pkgconfig git perl-core tar xz nasm patch
-
-              if [ "${{ matrix.enable_shared }}" = "1" ] && ! command -v patchelf >/dev/null; then
-                if ! yum install -y patchelf; then
-                  curl -fsSL https://github.com/NixOS/patchelf/archive/refs/tags/0.18.0.tar.gz -o /tmp/patchelf.tar.gz
-                  tar -xzf /tmp/patchelf.tar.gz -C /tmp
-                  cd /tmp/patchelf-0.18.0
-                  ./bootstrap.sh
-                  ./configure
-                  make -j"$(nproc)"
-                  make install
-                  cd /workspace
-                fi
-              fi
-
-              DEPS_PREFIX=/opt/ffmpeg-deps
-              mkdir -p "$DEPS_PREFIX"
-              export PKG_CONFIG_PATH="$DEPS_PREFIX/lib/pkgconfig:$DEPS_PREFIX/lib64/pkgconfig"
-              export CPPFLAGS="-I$DEPS_PREFIX/include"
-              export LDFLAGS="-L$DEPS_PREFIX/lib -L$DEPS_PREFIX/lib64"
-              export PATH="$DEPS_PREFIX/bin:$PATH"
-
-              build_autotools_dep() {
-                local name="$1"
-                local version="$2"
-                local url="$3"
-                local dir="$4"
-                if pkg-config --exists "$name"; then
-                  return 0
-                fi
-                curl -fsSL "$url" -o "/tmp/$name-$version.tar.gz"
-                tar -xzf "/tmp/$name-$version.tar.gz" -C /tmp
-                cd "/tmp/$dir"
-                CFLAGS="-O2 -fPIC" ./configure --prefix="$DEPS_PREFIX" --disable-dependency-tracking --disable-shared --enable-static
-                make -j"$(nproc)"
-                make install
-                cd /workspace
-              }
-
-              curl -fsSL https://www.openssl.org/source/openssl-3.0.14.tar.gz -o /tmp/openssl-3.0.14.tar.gz
-              tar -xzf /tmp/openssl-3.0.14.tar.gz -C /tmp
-              cd /tmp/openssl-3.0.14
-              if [ "${{ matrix.arch }}" = "aarch64" ]; then
-                OPENSSL_TARGET=linux-aarch64
-              else
-                OPENSSL_TARGET=linux-x86_64
-              fi
-              ./Configure "$OPENSSL_TARGET" no-shared -fPIC --prefix="$DEPS_PREFIX" --libdir=lib
-              make -j"$(nproc)"
-              make install_sw
-              cd /workspace
-
-              build_autotools_dep ogg 1.3.5 https://downloads.xiph.org/releases/ogg/libogg-1.3.5.tar.gz libogg-1.3.5
-              build_autotools_dep vorbis 1.3.7 https://downloads.xiph.org/releases/vorbis/libvorbis-1.3.7.tar.gz libvorbis-1.3.7
-              build_autotools_dep speex 1.2.1 https://downloads.xiph.org/releases/speex/speex-1.2.1.tar.gz speex-1.2.1
-              build_autotools_dep opus 1.5.2 https://downloads.xiph.org/releases/opus/opus-1.5.2.tar.gz opus-1.5.2
-              build_autotools_dep lame 3.100 https://downloads.sourceforge.net/project/lame/lame/3.100/lame-3.100.tar.gz lame-3.100
-
-              chmod +x build.sh build-linux.sh build-common.sh
-              ARCH=${{ matrix.arch }} ENABLE_SHARED=${{ matrix.enable_shared }} ENABLE_EXTERNAL_CODECS=1 TARGET_OS=linux ./build.sh
-            '
-
-      - name: Verify Linux Artifacts
-        if: needs.parse-tag.outputs.linux_arch == 'all' || needs.parse-tag.outputs.linux_arch == matrix.arch
-        run: |
-          ls -lah outputs
-          test -n "$(find outputs -maxdepth 1 -type f -name '*-${{ matrix.lib_type }}-${{ matrix.arch }}-linux-gnu.tar.gz' -print -quit)"
-
-      - name: Upload Linux Artifacts
-        if: needs.parse-tag.outputs.linux_arch == 'all' || needs.parse-tag.outputs.linux_arch == matrix.arch
-        uses: actions/upload-artifact@v4
-        with:
-          name: ffmpeg-linux-${{ matrix.arch }}-${{ matrix.lib_type }}
-          path: outputs/*-${{ matrix.lib_type }}-${{ matrix.arch }}-linux-gnu.tar.gz
+    uses: ./.github/workflows/build-linux.yml
+    with:
+      matrix: ${{ needs.parse-tag.outputs.linux_matrix }}
 
   build-wasm:
     needs: parse-tag
     if: needs.parse-tag.outputs.build_wasm == 'true'
-    runs-on: ubuntu-latest
-    steps:
-      - uses: actions/checkout@v4
-
-      - name: Build WASM
-        run: |
-          chmod +x build-wasm.sh
-          ENABLE_EXTERNAL_CODECS=0 ./build-wasm.sh
-
-      - name: Upload WASM Artifacts
-        uses: actions/upload-artifact@v4
-        with:
-          name: ffmpeg-wasm-artifacts
-          path: outputs/*.tar.gz
+    uses: ./.github/workflows/build-wasm.yml
 
   build-macos:
     needs: parse-tag
     if: needs.parse-tag.outputs.build_macos == 'true'
-    strategy:
-      fail-fast: false
-      matrix:
-        include:
-          - arch: x86_64
-            runner: macos-15-intel
-            enable_shared: 0
-            lib_type: static
-          - arch: x86_64
-            runner: macos-15-intel
-            enable_shared: 1
-            lib_type: shared
-          - arch: aarch64
-            runner: macos-15
-            enable_shared: 0
-            lib_type: static
-          - arch: aarch64
-            runner: macos-15
-            enable_shared: 1
-            lib_type: shared
-    runs-on: ${{ matrix.runner }}
-    steps:
-      - uses: actions/checkout@v4
-
-      - name: Install macOS dependencies
-        if: needs.parse-tag.outputs.macos_arch == 'all' || needs.parse-tag.outputs.macos_arch == matrix.arch
-        run: |
-          brew update
-          brew install autoconf automake libtool pkg-config nasm yasm make bison gnu-tar xz openssl@3 lame opus libogg libvorbis speex
-
-      - name: Build macOS
-        if: needs.parse-tag.outputs.macos_arch == 'all' || needs.parse-tag.outputs.macos_arch == matrix.arch
-        run: |
-          set -euo pipefail
-          BREW_PREFIX="$(brew --prefix)"
-          OPENSSL_PREFIX="$(brew --prefix openssl@3)"
-          export PKG_CONFIG_PATH="$OPENSSL_PREFIX/lib/pkgconfig:$BREW_PREFIX/lib/pkgconfig"
-          export CPPFLAGS="-I$OPENSSL_PREFIX/include -I$BREW_PREFIX/include"
-          export LDFLAGS="-L$OPENSSL_PREFIX/lib -L$BREW_PREFIX/lib"
-          export PATH="$BREW_PREFIX/opt/make/libexec/gnubin:$PATH"
-          export MACOSX_DEPLOYMENT_TARGET=12.0
-
-          chmod +x build.sh build-macos.sh build-common.sh
-          ARCH=${{ matrix.arch }} ENABLE_SHARED=${{ matrix.enable_shared }} ENABLE_EXTERNAL_CODECS=1 TARGET_OS=macos ./build.sh
-
-      - name: Verify macOS Artifacts
-        if: needs.parse-tag.outputs.macos_arch == 'all' || needs.parse-tag.outputs.macos_arch == matrix.arch
-        run: |
-          ls -lah outputs
-          test -n "$(find outputs -maxdepth 1 -type f -name '*-${{ matrix.lib_type }}-${{ matrix.arch }}-macos.tar.gz' -print -quit)"
-
-      - name: Upload macOS Artifacts
-        if: needs.parse-tag.outputs.macos_arch == 'all' || needs.parse-tag.outputs.macos_arch == matrix.arch
-        uses: actions/upload-artifact@v4
-        with:
-          name: ffmpeg-macos-${{ matrix.arch }}-${{ matrix.lib_type }}
-          path: outputs/*-${{ matrix.lib_type }}-${{ matrix.arch }}-macos.tar.gz
+    uses: ./.github/workflows/build-macos.yml
+    with:
+      matrix: ${{ needs.parse-tag.outputs.macos_matrix }}
 
   build-windows:
     needs: parse-tag
-    runs-on: ${{ matrix.runner }}
-    if: |
-      needs.parse-tag.outputs.build_windows_msvc_static == 'true' ||
-      needs.parse-tag.outputs.build_windows_mingw_static == 'true' ||
-      needs.parse-tag.outputs.build_windows_mingw_shared == 'true'
-    strategy:
-      fail-fast: false
-      matrix:
-        include:
-          - output_key: build_windows_msvc_static
-            toolchain: msvc
-            enable_shared: 0
-            lib_type: static
-            arch: x86_64
-            runner: windows-latest
-            artifact_name: ffmpeg-windows-x86_64-msvc-static
-            artifact_glob: outputs/*-static-x86_64-msvc.tar.gz
-          - output_key: build_windows_msvc_static
-            toolchain: msvc
-            enable_shared: 0
-            lib_type: static
-            arch: aarch64
-            runner: windows-11-arm
-            artifact_name: ffmpeg-windows-aarch64-msvc-static
-            artifact_glob: outputs/*-static-aarch64-msvc.tar.gz
-          - output_key: build_windows_mingw_static
-            toolchain: mingw
-            enable_shared: 0
-            lib_type: static
-            arch: x86_64
-            runner: windows-latest
-            msystem: MINGW64
-            package_prefix: mingw-w64-x86_64
-            artifact_name: ffmpeg-windows-x86_64-mingw-static
-            artifact_glob: outputs/*-static-x86_64-w64-mingw32.tar.gz
-          - output_key: build_windows_mingw_static
-            toolchain: mingw
-            enable_shared: 0
-            lib_type: static
-            arch: aarch64
-            runner: windows-11-arm
-            msystem: CLANGARM64
-            package_prefix: mingw-w64-clang-aarch64
-            artifact_name: ffmpeg-windows-aarch64-mingw-static
-            artifact_glob: outputs/*-static-aarch64-w64-mingw32.tar.gz
-          - output_key: build_windows_mingw_shared
-            toolchain: mingw
-            enable_shared: 1
-            lib_type: shared
-            arch: x86_64
-            runner: windows-latest
-            msystem: MINGW64
-            package_prefix: mingw-w64-x86_64
-            artifact_name: ffmpeg-windows-x86_64-mingw-shared
-            artifact_glob: outputs/*-shared-x86_64-w64-mingw32.tar.gz
-          - output_key: build_windows_mingw_shared
-            toolchain: mingw
-            enable_shared: 1
-            lib_type: shared
-            arch: aarch64
-            runner: windows-11-arm
-            msystem: CLANGARM64
-            package_prefix: mingw-w64-clang-aarch64
-            artifact_name: ffmpeg-windows-aarch64-mingw-shared
-            artifact_glob: outputs/*-shared-aarch64-w64-mingw32.tar.gz
-    steps:
-      - uses: actions/checkout@v4
-
-      - name: Install MSYS2 dependencies for MSVC
-        if: |
-          matrix.toolchain == 'msvc' &&
-          needs.parse-tag.outputs.build_windows_msvc_static == 'true' &&
-          (needs.parse-tag.outputs.windows_arch == 'all' || needs.parse-tag.outputs.windows_arch == matrix.arch)
-        shell: pwsh
-        run: |
-          $ErrorActionPreference = "Stop"
-          if (-not (Test-Path "C:\msys64\usr\bin\pacman.exe")) {
-            choco install msys2 --no-progress -y --params "/InstallDir:C:\msys64"
-          }
-          C:\msys64\usr\bin\pacman.exe -Sy --noconfirm nasm make diffutils
-
-      - name: Setup MSYS2
-        if: |
-          matrix.toolchain == 'mingw' &&
-          (needs.parse-tag.outputs.windows_arch == 'all' || needs.parse-tag.outputs.windows_arch == matrix.arch) &&
-          ((matrix.enable_shared == 0 && needs.parse-tag.outputs.build_windows_mingw_static == 'true') ||
-          (matrix.enable_shared == 1 && needs.parse-tag.outputs.build_windows_mingw_shared == 'true'))
-        uses: msys2/setup-msys2@v2
-        with:
-          msystem: ${{ matrix.msystem }}
-          update: true
-          install: >-
-            git
-            base-devel
-            ${{ matrix.package_prefix }}-toolchain
-            ${{ matrix.package_prefix }}-nasm
-            ${{ matrix.package_prefix }}-lame
-            ${{ matrix.package_prefix }}-opus
-            ${{ matrix.package_prefix }}-libvorbis
-            ${{ matrix.package_prefix }}-speex
-            ${{ matrix.package_prefix }}-openssl
-            make
-            diffutils
-            tar
-
-      - name: Build Windows with MSVC
-        if: |
-          matrix.toolchain == 'msvc' &&
-          needs.parse-tag.outputs.build_windows_msvc_static == 'true' &&
-          (needs.parse-tag.outputs.windows_arch == 'all' || needs.parse-tag.outputs.windows_arch == matrix.arch)
-        shell: pwsh
-        run: |
-          $ErrorActionPreference = "Stop"
-          $env:ENABLE_EXTERNAL_CODECS = "1"
-          .\build-window.ps1 -Toolchain msvc -Arch ${{ matrix.arch }} -EnableShared ${{ matrix.enable_shared }}
-
-      - name: Build Windows with MinGW
-        if: |
-          matrix.toolchain == 'mingw' &&
-          (needs.parse-tag.outputs.windows_arch == 'all' || needs.parse-tag.outputs.windows_arch == matrix.arch) &&
-          ((matrix.enable_shared == 0 && needs.parse-tag.outputs.build_windows_mingw_static == 'true') ||
-          (matrix.enable_shared == 1 && needs.parse-tag.outputs.build_windows_mingw_shared == 'true'))
-        shell: msys2 {0}
-        run: |
-          set -e
-          chmod +x build.sh build-window.sh build-common.sh
-          export ARCH=${{ matrix.arch }}
-          export ENABLE_SHARED=${{ matrix.enable_shared }}
-          export ENABLE_EXTERNAL_CODECS=1
-          export TOOLCHAIN=mingw
-          TARGET_OS=windows ./build.sh
-
-      - name: Verify Windows Artifact
-        if: |
-          (needs.parse-tag.outputs.windows_arch == 'all' || needs.parse-tag.outputs.windows_arch == matrix.arch) &&
-          ((matrix.toolchain == 'msvc' && needs.parse-tag.outputs.build_windows_msvc_static == 'true') ||
-          (matrix.toolchain == 'mingw' && matrix.enable_shared == 0 && needs.parse-tag.outputs.build_windows_mingw_static == 'true') ||
-          (matrix.toolchain == 'mingw' && matrix.enable_shared == 1 && needs.parse-tag.outputs.build_windows_mingw_shared == 'true'))
-        shell: bash
-        run: test -n "$(find outputs -maxdepth 1 -type f -name '*-${{ matrix.lib_type }}-${{ matrix.arch }}-*' -print -quit)"
-
-      - name: Upload Artifacts
-        if: |
-          (needs.parse-tag.outputs.windows_arch == 'all' || needs.parse-tag.outputs.windows_arch == matrix.arch) &&
-          ((matrix.toolchain == 'msvc' && needs.parse-tag.outputs.build_windows_msvc_static == 'true') ||
-          (matrix.toolchain == 'mingw' && matrix.enable_shared == 0 && needs.parse-tag.outputs.build_windows_mingw_static == 'true') ||
-          (matrix.toolchain == 'mingw' && matrix.enable_shared == 1 && needs.parse-tag.outputs.build_windows_mingw_shared == 'true'))
-        uses: actions/upload-artifact@v4
-        with:
-          name: ${{ matrix.artifact_name }}
-          path: ${{ matrix.artifact_glob }}
+    if: needs.parse-tag.outputs.build_windows == 'true'
+    uses: ./.github/workflows/build-windows.yml
+    with:
+      matrix: ${{ needs.parse-tag.outputs.windows_matrix }}
 
   release:
     needs: [parse-tag, build-linux, build-wasm, build-macos, build-windows]

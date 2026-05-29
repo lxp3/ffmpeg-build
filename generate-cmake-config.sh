@@ -22,13 +22,29 @@ imported_type="STATIC"
 
 mkdir -p "$cmake_dir"
 
+can_link_atomic() {
+    local cc_bin="${CC:-cc}"
+    local tmp_dir
+    tmp_dir="$(mktemp -d)"
+    printf 'int main(void) { return 0; }\n' > "$tmp_dir/test.c"
+    if "$cc_bin" "$tmp_dir/test.c" -latomic -o "$tmp_dir/test" >/dev/null 2>&1; then
+        rm -rf "$tmp_dir"
+        return 0
+    fi
+    rm -rf "$tmp_dir"
+    return 1
+}
+
 if [ "$lib_type" = "shared" ]; then
     imported_type="SHARED"
 elif [ "$lib_type" = "static" ]; then
     case "$platform:$toolchain" in
         linux:*)
             third_party_libs="mp3lame;opus;vorbisenc;vorbis;ogg;speex;ssl;crypto"
-            system_libs="m;pthread;dl;rt;atomic"
+            system_libs="m;pthread;dl;rt"
+            if can_link_atomic; then
+                system_libs="$system_libs;atomic"
+            fi
             ;;
         macos:*)
             third_party_libs="mp3lame;opus;vorbisenc;vorbis;ogg;speex;ssl;crypto"

@@ -1,0 +1,21 @@
+name: Build WASM FFmpeg
+
+on:
+  workflow_call:
+
+jobs:
+  build:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Build WASM
+        run: |
+          chmod +x build-wasm.sh
+          ENABLE_EXTERNAL_CODECS=0 ./build-wasm.sh
+
+      - name: Upload WASM Artifacts
+        uses: actions/upload-artifact@v4
+        with:
+          name: ffmpeg-wasm-artifacts
+          path: outputs/*.tar.gz

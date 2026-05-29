@@ -1,0 +1,77 @@
+name: Build Windows FFmpeg
+
+on:
+  workflow_call:
+    inputs:
+      matrix:
+        required: true
+        type: string
+
+jobs:
+  build:
+    strategy:
+      fail-fast: false
+      matrix: ${{ fromJson(inputs.matrix) }}
+    runs-on: ${{ matrix.runner }}
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Install MSYS2 dependencies for MSVC
+        if: matrix.toolchain == 'msvc'
+        shell: pwsh
+        run: |
+          $ErrorActionPreference = "Stop"
+          if (-not (Test-Path "C:\msys64\usr\bin\pacman.exe")) {
+            choco install msys2 --no-progress -y --params "/InstallDir:C:\msys64"
+          }
+          C:\msys64\usr\bin\pacman.exe -Sy --noconfirm nasm make diffutils
+
+      - name: Setup MSYS2
+        if: matrix.toolchain == 'mingw'
+        uses: msys2/setup-msys2@v2
+        with:
+          msystem: ${{ matrix.msystem }}
+          update: true
+          install: >-
+            git
+            base-devel
+            ${{ matrix.package_prefix }}-toolchain
+            ${{ matrix.package_prefix }}-nasm
+            ${{ matrix.package_prefix }}-lame
+            ${{ matrix.package_prefix }}-opus
+            ${{ matrix.package_prefix }}-libvorbis
+            ${{ matrix.package_prefix }}-speex
+            ${{ matrix.package_prefix }}-openssl
+            make
+            diffutils
+            tar
+
+      - name: Build Windows with MSVC
+        if: matrix.toolchain == 'msvc'
+        shell: pwsh
+        run: |
+          $ErrorActionPreference = "Stop"
+          $env:ENABLE_EXTERNAL_CODECS = "1"
+          .\build-window.ps1 -Toolchain msvc -Arch ${{ matrix.arch }} -EnableShared ${{ matrix.enable_shared }}
+
+      - name: Build Windows with MinGW
+        if: matrix.toolchain == 'mingw'
+        shell: msys2 {0}
+        run: |
+          set -e
+          chmod +x build.sh build-window.sh build-common.sh
+          export ARCH=${{ matrix.arch }}
+          export ENABLE_SHARED=${{ matrix.enable_shared }}
+          export ENABLE_EXTERNAL_CODECS=1
+          export TOOLCHAIN=mingw
+          TARGET_OS=windows ./build.sh
+
+      - name: Verify Windows Artifact
+        shell: bash
+        run: test -n "$(find outputs -maxdepth 1 -type f -name '*-${{ matrix.lib_type }}-${{ matrix.arch }}-*' -print -quit)"
+
+      - name: Upload Artifacts
+        uses: actions/upload-artifact@v4
+        with:
+          name: ${{ matrix.artifact_name }}
+          path: ${{ matrix.artifact_glob }}

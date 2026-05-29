@@ -252,7 +252,7 @@ include(FetchContent)
 
 FetchContent_Declare(
     ffmpeg_bin
-    URL "https://github.com/lxp3/ffmpeg-build/releases/download/v0.3.1/ffmpeg-7.1-static-x86_64-linux-gnu.tar.gz"
+    URL "https://github.com/lxp3/ffmpeg-build/releases/download/v0.3.4/ffmpeg-7.1-static-x86_64-linux-gnu.tar.gz"
 )
 FetchContent_MakeAvailable(ffmpeg_bin)
 FetchContent_GetProperties(ffmpeg_bin SOURCE_DIR FFMPEG_EXTRACT_DIR)
