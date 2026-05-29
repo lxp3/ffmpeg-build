@@ -37,12 +37,12 @@ elif [ "$lib_type" = "static" ]; then
             ;;
         windows:mingw)
             third_party_libs="mp3lame;opus;vorbisenc;vorbis;ogg;speex;ssl;crypto"
-            system_libs="ws2_32;bcrypt;crypt32;user32;advapi32;ole32;strmiids;uuid;gdi32;psapi"
+            system_libs="ws2_32;bcrypt;crypt32;user32;advapi32;ole32;strmiids;uuid;gdi32;psapi;shlwapi;vfw32"
             ;;
         windows:msvc)
             lib_ext=".lib"
             ffmpeg_lib_prefix="lib"
-            system_libs="ws2_32;bcrypt;crypt32;user32;advapi32;ole32;strmiids;uuid;gdi32;psapi"
+            system_libs="ws2_32;bcrypt;crypt32;user32;advapi32;ole32;strmiids;uuid;gdi32;psapi;shlwapi;vfw32"
             ;;
     esac
 else
