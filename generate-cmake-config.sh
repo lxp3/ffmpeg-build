@@ -53,6 +53,9 @@ fi
 if [ "$platform:$toolchain" = "windows:msvc" ]; then
     lib_ext=".lib"
     ffmpeg_lib_prefix="lib"
+    if [ ! -f "$sdk_prefix/lib/libavdevice.lib" ] && [ -f "$sdk_prefix/lib/libavdevice.a" ]; then
+        lib_ext=".a"
+    fi
 fi
 
 cat > "$cmake_dir/FFmpegConfig.cmake" <<EOF
