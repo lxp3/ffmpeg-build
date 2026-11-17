@@ -30,12 +30,16 @@ fi
 
 # Programs: always enable ffmpeg, disable ffprobe
 FFMPEG_CONFIGURE_FLAGS+=(
-    --enable-pic
     --enable-ffmpeg
     --disable-ffprobe
 )
 
 if [ "$TOOLCHAIN" = "msvc" ]; then
+    filtered_flags=()
+    for flag in "${FFMPEG_CONFIGURE_FLAGS[@]}"; do
+        [ "$flag" = "--enable-pic" ] || filtered_flags+=("$flag")
+    done
+    FFMPEG_CONFIGURE_FLAGS=("${filtered_flags[@]}")
     TOOLCHAIN_SUFFIX="msvc"
     filter_external_codec_flags
     # Force MSVC tools to avoid confusion with MinGW tools in MSYS2 path
@@ -57,6 +61,7 @@ if [ "$TOOLCHAIN" = "msvc" ]; then
         )
     fi
 else
+    FFMPEG_CONFIGURE_FLAGS+=(--enable-pic)
     case "$ARCH" in
         x86_64)
             TOOLCHAIN_SUFFIX="w64-mingw32"

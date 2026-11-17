@@ -91,7 +91,6 @@ jobs:
             LINUX_ARCH=aarch64
           elif [[ "$TAG" == *-linux ]]; then
             BUILD_LINUX=true
-            BUILD_WASM=true
           elif [[ "$TAG" == *-wasm ]]; then
             BUILD_WASM=true
           else
