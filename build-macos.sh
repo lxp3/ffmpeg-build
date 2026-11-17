@@ -35,6 +35,7 @@ else
 fi
 
 FFMPEG_CONFIGURE_FLAGS+=(
+    --enable-pic
     --enable-ffmpeg
     --disable-ffprobe
 )

@@ -66,6 +66,7 @@ tar --strip-components=1 -xf "$BASE_DIR/$FFMPEG_TARBALL"
 
 # WASM specific flags (WASM is always static, no programs)
 WASM_CONFIGURE_FLAGS=(
+    --enable-pic
     --prefix="$BASE_DIR/$OUTPUT_DIR"
     --target-os=none
     --arch=x86_32
@@ -91,7 +92,7 @@ WASM_CONFIGURE_FLAGS=(
     --disable-shared
     --disable-programs
 
-    --extra-cflags="-O3 -msimd128"
+    --extra-cflags="-O3 -fPIC -msimd128"
     --extra-ldflags="-O3 -msimd128 -sWASM=1"
 )
 

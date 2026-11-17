@@ -270,6 +270,8 @@ target_link_libraries(my_app PRIVATE ffmpeg::ffmpeg)
 
 FFmpeg 编译选项配置在 `ffmpeg_configure_flags.txt` 文件中。
 
+各平台构建脚本显式启用 `--enable-pic`；Linux、macOS、MinGW 和 WASM 同时使用 `-fPIC`。Linux/macOS CI 会检查生成的 `CONFIG_PIC` 是否启用。更新已有本地构建时，请使用新的 `BUILD_DIR` 或先执行 `make clean` 后重新编译，避免复用旧的非 PIC 对象文件；已有发布包需要重新构建。
+
 ## License
 
 MIT

@@ -30,6 +30,7 @@ fi
 
 # Programs: always enable ffmpeg, disable ffprobe
 FFMPEG_CONFIGURE_FLAGS+=(
+    --enable-pic
     --enable-ffmpeg
     --disable-ffprobe
 )
@@ -59,7 +60,7 @@ else
     case "$ARCH" in
         x86_64)
             TOOLCHAIN_SUFFIX="w64-mingw32"
-            EXTRA_CFLAGS="-O3 -D_WIN32_WINNT=0x0601 -DWINVER=0x0601 -msse4.2 -mavx2 -ffunction-sections -fdata-sections"
+            EXTRA_CFLAGS="-O3 -fPIC -D_WIN32_WINNT=0x0601 -DWINVER=0x0601 -msse4.2 -mavx2 -ffunction-sections -fdata-sections"
             DLLTOOL_MACHINE="i386:x86-64"
             ;;
         aarch64)
@@ -78,7 +79,7 @@ else
                 --ranlib="$RANLIB"
                 --strip="$STRIP"
             )
-            EXTRA_CFLAGS="-O3 -D_WIN32_WINNT=0x0601 -DWINVER=0x0601 -ffunction-sections -fdata-sections"
+            EXTRA_CFLAGS="-O3 -fPIC -D_WIN32_WINNT=0x0601 -DWINVER=0x0601 -ffunction-sections -fdata-sections"
             DLLTOOL_MACHINE="arm64"
             ;;
     esac

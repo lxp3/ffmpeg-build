@@ -12,7 +12,7 @@ jobs:
       - name: Build WASM
         run: |
           chmod +x build-wasm.sh
-          ENABLE_EXTERNAL_CODECS=0 ./build-wasm.sh
+          CFLAGS="-fPIC" ENABLE_EXTERNAL_CODECS=0 ./build-wasm.sh
 
       - name: Upload WASM Artifacts
         uses: actions/upload-artifact@v4

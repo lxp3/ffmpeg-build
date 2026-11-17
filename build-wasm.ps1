@@ -90,6 +90,7 @@ if (Test-Path "ffmpeg_configure_flags.txt") {
 
 # WASM specific configure flags
 $wasmFlags = @(
+    "--enable-pic"
     "--prefix=$OUTPUT_DIR"
     "--target-os=none"
     "--arch=x86_32"
@@ -111,7 +112,7 @@ $wasmFlags = @(
     "--enable-static"
     "--disable-shared"
     "--disable-programs"
-    '--extra-cflags="-O3 -msimd128"'
+    '--extra-cflags="-O3 -fPIC -msimd128"'
     '--extra-ldflags="-O3 -msimd128 -sWASM=1"'
 )
 

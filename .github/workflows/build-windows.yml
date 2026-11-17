@@ -64,6 +64,7 @@ jobs:
           export ENABLE_SHARED=${{ matrix.enable_shared }}
           export ENABLE_EXTERNAL_CODECS=1
           export TOOLCHAIN=mingw
+          export CFLAGS="-fPIC"
           TARGET_OS=windows ./build.sh
 
       - name: Verify Windows Artifact

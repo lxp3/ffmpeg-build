@@ -84,7 +84,8 @@ jobs:
               build_autotools_dep lame 3.100 https://downloads.sourceforge.net/project/lame/lame/3.100/lame-3.100.tar.gz lame-3.100
 
               chmod +x build.sh build-linux.sh build-common.sh
-              ARCH=${{ matrix.arch }} ENABLE_SHARED=${{ matrix.enable_shared }} ENABLE_EXTERNAL_CODECS=1 TARGET_OS=linux ./build.sh
+              CFLAGS="-fPIC" ARCH=${{ matrix.arch }} ENABLE_SHARED=${{ matrix.enable_shared }} ENABLE_EXTERNAL_CODECS=1 TARGET_OS=linux ./build.sh
+              grep -q "^#define CONFIG_PIC 1$" "build-${{ matrix.lib_type }}-linux/config.h"
             '
 
       - name: Verify Linux Artifacts
